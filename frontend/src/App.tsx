@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { WorkoutSet, Exercise, RpeLevel } from './types';
+import type { Exercise, RpeLevel } from './types';
 import LoggingFlow from './components/LoggingFlow';
 
 export default function App() {
@@ -16,6 +16,15 @@ export default function App() {
     const totalSets = 3;
     const [weight, setWeight] = useState(24);
     const lastSet = "24kg x 10";
+
+    const handleLog = (reps: number, rpe: RpeLevel) => {
+        console.log('Logged:', reps, rpe);
+        setTotalVolume(v => v + weight * reps);
+        setProgress(p => Math.min(100, p + 10));
+        if (currentSet < totalSets) {
+            setCurrentSet(s => s + 1);
+        }
+    };
 
     return (
         <div className="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center p-4 select-none">
@@ -90,12 +99,7 @@ export default function App() {
                 {/* Action Area */}
                 <div id="action-area" className="min-h-[260px]">
                     <LoggingFlow
-                        onLog={(reps, rpe) => {
-                            console.log('Logged:', reps, rpe);
-                            // Add to history and volume
-                            setTotalVolume(v => v + weight * reps);
-                            // Move to next set or rest
-                        }}
+                        onLog={handleLog}
                     />
                 </div>
 

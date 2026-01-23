@@ -1,4 +1,4 @@
-import { RpeLevel } from '../types';
+import type { RpeLevel } from '../types';
 
 interface LoggingFlowProps {
     onLog: (reps: number, rpe: RpeLevel) => void;
