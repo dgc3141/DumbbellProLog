@@ -1,0 +1,17 @@
+# Node
+node_modules/
+dist/
+.env
+
+# Rust
+target/
+**/*.rs.bk
+
+# CDK
+cdk.out/
+.cdk.staging/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
