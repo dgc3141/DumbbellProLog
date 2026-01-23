@@ -1,9 +1,9 @@
 export type RpeLevel = 'easy' | 'just' | 'limit';
 
 export interface WorkoutSet {
-    userId: string;
+    user_id: string;
     timestamp: string;
-    exerciseId: string;
+    exercise_id: string;
     weight: number;
     reps: number;
     rpe: RpeLevel;
