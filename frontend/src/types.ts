@@ -14,3 +14,15 @@ export interface Exercise {
     name: string;
     notes?: string;
 }
+
+export interface RoutineExercise {
+    exercise: Exercise;
+    targetSets: number;
+    defaultWeight: number;
+}
+
+export interface Routine {
+    id: string;
+    name: string;
+    exercises: RoutineExercise[];
+}
