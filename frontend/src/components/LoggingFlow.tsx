@@ -1,12 +1,13 @@
 import type { RpeLevel } from '../types';
 
 interface LoggingFlowProps {
+    theme?: 'light' | 'dark';
     reps: number;
     onRepsChange: (reps: number) => void;
     onLog: (reps: number, rpe: RpeLevel) => void;
 }
 
-export default function LoggingFlow({ reps: selectedReps, onRepsChange, onLog }: LoggingFlowProps) {
+export default function LoggingFlow({ theme = 'dark', reps: selectedReps, onRepsChange, onLog }: LoggingFlowProps) {
     const repsOptions = Array.from({ length: 8 }, (_, i) => i + 8); // 8 to 15 reps
 
     const rpeOptions: { level: RpeLevel; label: string; icon: string; color: string }[] = [
@@ -16,7 +17,7 @@ export default function LoggingFlow({ reps: selectedReps, onRepsChange, onLog }:
     ];
 
     return (
-        <div className="bg-[#1e293b] rounded-[2.5rem] p-8 shadow-2xl border border-slate-700/50">
+        <div className={`rounded-[2.5rem] p-8 shadow-2xl border transition-colors ${theme === 'dark' ? 'bg-[#1e293b] border-slate-700/50' : 'bg-white border-slate-200'}`}>
             <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500 mb-6 text-center">Select Reps</p>
 
             <div className="grid grid-cols-4 gap-3 mb-10">
@@ -25,7 +26,9 @@ export default function LoggingFlow({ reps: selectedReps, onRepsChange, onLog }:
                         key={reps}
                         className={`aspect-square rounded-2xl border flex items-center justify-center text-xl font-black transition-all active:scale-90 ${selectedReps === reps
                             ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
-                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                            : theme === 'dark'
+                                ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
                             }`}
                         onClick={() => onRepsChange(reps)}
                     >
@@ -40,7 +43,7 @@ export default function LoggingFlow({ reps: selectedReps, onRepsChange, onLog }:
                 {rpeOptions.map(option => (
                     <button
                         key={option.level}
-                        className={`flex flex-col items-center justify-center p-4 rounded-3xl border ${option.color} transition-all active:scale-95 hover:brightness-125`}
+                        className={`flex flex-col items-center justify-center p-4 rounded-3xl border transition-all active:scale-95 hover:brightness-125 ${option.color}`}
                         onClick={() => onLog(selectedReps, option.level)}
                     >
                         <span className="text-2xl mb-1">{option.icon}</span>

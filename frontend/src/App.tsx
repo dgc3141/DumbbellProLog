@@ -1,85 +1,74 @@
 import { useState, useEffect } from 'react';
-import type { Exercise, Routine, RpeLevel, WorkoutSet } from './types';
+import type { RpeLevel, WorkoutSet } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
-
-// Mock Data for "Push Day"
-const EXERCISES: Record<string, Exercise> = {
-  '1': { id: '1', name: 'インクライン・プレス', notes: '30° / 肩甲骨を寄せて固定' },
-  '2': { id: '2', name: 'ショルダー・プレス', notes: '背もたれ垂直 / 耳の横まで下ろす' },
-  '3': { id: '3', name: 'トライセプス・エクステンション', notes: '肘を固定 / ストレッチ意識' },
-  '4': { id: '4', name: 'サイド・レイズ', notes: '小指側を上げる / 反動を使わない' },
-};
-
-const PUSH_DAY: Routine = {
-  id: 'push_day',
-  name: 'Push Day',
-  exercises: [
-    { exercise: EXERCISES['1'], targetSets: 3, defaultWeight: 24 },
-    { exercise: EXERCISES['2'], targetSets: 3, defaultWeight: 16 },
-    { exercise: EXERCISES['3'], targetSets: 3, defaultWeight: 12 },
-    { exercise: EXERCISES['4'], targetSets: 3, defaultWeight: 8 },
-  ]
-};
+import StatsDashboard from './components/StatsDashboard';
+import { ROUTINES } from './routines';
+import { LayoutGrid, BarChart2, CheckCircle2, ChevronRight, Moon, Sun } from 'lucide-react';
 
 export default function App() {
   // Global State
-  const [totalVolume, setTotalVolume] = useState(2480); // Mock starting volume
   const [history, setHistory] = useState<WorkoutSet[]>([]);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [view, setView] = useState<'routine_select' | 'training' | 'stats'>('routine_select');
 
   // Session State
+  const [selectedRoutineIndex, setSelectedRoutineIndex] = useState(0);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
   const [isResting, setIsResting] = useState(false);
-  const [weight, setWeight] = useState(PUSH_DAY.exercises[0].defaultWeight);
+  const [weight, setWeight] = useState(24);
   const [isSessionComplete, setIsSessionComplete] = useState(false);
   const [selectedRepsMap, setSelectedRepsMap] = useState<Record<string, number>>({});
+  const [totalVolume, setTotalVolume] = useState(0);
 
-  const currentRoutineEntry = PUSH_DAY.exercises[currentExerciseIndex];
+  const activeRoutine = ROUTINES[selectedRoutineIndex];
+  const currentRoutineEntry = activeRoutine.exercises[currentExerciseIndex];
   const currentExercise = currentRoutineEntry?.exercise;
   const totalSetsForCurrent = currentRoutineEntry?.targetSets || 3;
 
-  // Calculate total progress (sets completed / total sets in routine)
-  const totalSetsInRoutine = PUSH_DAY.exercises.reduce((acc, ex) => acc + ex.targetSets, 0);
-  const setsCompletedPreviousExercises = PUSH_DAY.exercises
-    .slice(0, currentExerciseIndex)
-    .reduce((acc, ex) => acc + ex.targetSets, 0);
-  const totalSetsCompleted = setsCompletedPreviousExercises + (currentSet - 1);
-  const progress = isSessionComplete ? 100 : (totalSetsCompleted / totalSetsInRoutine) * 100;
-
-  const lastSet = history
-    .filter(h => h.exercise_id === currentExercise?.id)
-    .slice(-1)[0];
-
-  // Persistence (Simplified)
+  // Persistence & Initialization
   useEffect(() => {
-    const saved = localStorage.getItem('workout_state_v2');
+    const saved = localStorage.getItem('workout_state_v3');
+    const savedTheme = localStorage.getItem('app_theme');
+    const lastRoutineId = localStorage.getItem('last_routine_id');
+
     if (saved) {
       try {
         const state = JSON.parse(saved);
         setHistory(state.history || []);
-        // In a real app, we'd restore exact position, but for now reset to start or keep simple
-      } catch (e) {
-        console.error("Failed to load state", e);
-      }
+      } catch (e) { console.error(e); }
+    }
+    if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+    if (lastRoutineId) {
+      const idx = ROUTINES.findIndex(r => r.id === lastRoutineId);
+      if (idx !== -1) setSelectedRoutineIndex(idx);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('workout_state_v2', JSON.stringify({ history }));
+    localStorage.setItem('workout_state_v3', JSON.stringify({ history }));
   }, [history]);
 
   useEffect(() => {
-    if (currentRoutineEntry) {
-      setWeight(currentRoutineEntry.defaultWeight);
-      setCurrentSet(1);
-    }
-  }, [currentExerciseIndex]);
+    localStorage.setItem('app_theme', theme);
+  }, [theme]);
 
+  // Handle Routine Start
+  const startRoutine = (index: number) => {
+    setSelectedRoutineIndex(index);
+    setCurrentExerciseIndex(0);
+    setCurrentSet(1);
+    setIsResting(false);
+    setIsSessionComplete(false);
+    setTotalVolume(0);
+    setWeight(ROUTINES[index].exercises[0].defaultWeight);
+    setView('training');
+    localStorage.setItem('last_routine_id', ROUTINES[index].id);
+  };
 
   const handleLog = (reps: number, rpe: RpeLevel) => {
     if (!currentExercise) return;
-
     const newSet: WorkoutSet = {
       user_id: 'default',
       timestamp: new Date().toISOString(),
@@ -88,174 +77,186 @@ export default function App() {
       reps,
       rpe
     };
-
     setHistory(prev => [...prev, newSet]);
     setTotalVolume(v => v + weight * reps);
+    setIsResting(true);
 
-    // Quick Save to Backend (Fire and Forget)
+    // API Call
     fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSet)
-    }).catch(e => console.warn('Backend reachability check failed (expected if offline)', e));
-
-    setIsResting(true);
+    }).catch(e => console.warn(e));
   };
 
   const finishRest = () => {
     setIsResting(false);
-
     if (currentSet < totalSetsForCurrent) {
       setCurrentSet(s => s + 1);
     } else {
-      // Exercise Complete
-      if (currentExerciseIndex < PUSH_DAY.exercises.length - 1) {
-        setCurrentExerciseIndex(i => i + 1);
+      if (currentExerciseIndex < activeRoutine.exercises.length - 1) {
+        const nextIdx = currentExerciseIndex + 1;
+        setCurrentExerciseIndex(nextIdx);
+        setCurrentSet(1);
+        setWeight(activeRoutine.exercises[nextIdx].defaultWeight);
       } else {
         setIsSessionComplete(true);
       }
     }
   };
 
+  const lastSet = history
+    .filter(h => h.exercise_id === currentExercise?.id)
+    .slice(-1)[0];
+
+  const totalSetsInRoutine = activeRoutine.exercises.reduce((acc, ex) => acc + ex.targetSets, 0);
+  const setsCompletedPreviousExercises = activeRoutine.exercises
+    .slice(0, currentExerciseIndex)
+    .reduce((acc, ex) => acc + ex.targetSets, 0);
+  const progress = isSessionComplete ? 100 : ((setsCompletedPreviousExercises + (currentSet - 1)) / totalSetsInRoutine) * 100;
+
+  // --- RENDERING ---
+
+  const Layout = ({ children }: { children: React.ReactNode }) => (
+    <div className={`min-h-screen flex flex-col items-center p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] select-none transition-colors duration-500 ${theme} ${theme === 'dark' ? 'bg-[#0f172a] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      <div className="w-full max-w-md">
+        {children}
+      </div>
+
+      {/* Bottom Nav */}
+      <nav className={`fixed bottom-0 left-0 right-0 p-4 border-t glass-card flex justify-around items-center z-50 rounded-t-3xl ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+        <button onClick={() => setView('routine_select')} className={`flex flex-col items-center gap-1 ${view === 'routine_select' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <LayoutGrid size={20} />
+          <span className="text-[10px] font-black uppercase">Routines</span>
+        </button>
+        <button onClick={() => setView('training')} className={`flex flex-col items-center gap-1 ${view === 'training' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <CheckCircle2 size={20} />
+          <span className="text-[10px] font-black uppercase">Session</span>
+        </button>
+        <button onClick={() => setView('stats')} className={`flex flex-col items-center gap-1 ${view === 'stats' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <BarChart2 size={20} />
+          <span className="text-[10px] font-black uppercase">Stats</span>
+        </button>
+      </nav>
+    </div>
+  );
+
+  if (view === 'routine_select') {
+    return (
+      <Layout>
+        <header className="flex justify-between items-center mb-10 pt-4">
+          <h1 className="text-3xl font-black italic text-blue-500">ROUTINES</h1>
+          <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className="p-2 rounded-xl bg-slate-200 dark:bg-slate-800">
+            {theme === 'dark' ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} />}
+          </button>
+        </header>
+        <div className="space-y-4">
+          {ROUTINES.map((r, i) => (
+            <button key={r.id} onClick={() => startRoutine(i)} className="w-full glass-card p-6 rounded-3xl border border-slate-700/50 flex justify-between items-center active:scale-[0.98] transition-all text-left">
+              <div>
+                <p className="text-[10px] font-black uppercase text-blue-500 mb-1">{r.exercises.length} Exercises</p>
+                <h2 className="text-xl font-black italic">{r.name}</h2>
+              </div>
+              <ChevronRight className="text-slate-500" />
+            </button>
+          ))}
+        </div>
+      </Layout>
+    );
+  }
+
+  if (view === 'stats') {
+    return (
+      <Layout>
+        <header className="flex justify-between items-center mb-10 pt-4">
+          <h1 className="text-3xl font-black italic text-blue-500">GROWTH</h1>
+        </header>
+        <div className="glass-card p-6 rounded-[2.5rem] border border-slate-700/50">
+          <StatsDashboard history={history} theme={theme} />
+        </div>
+      </Layout>
+    );
+  }
+
   if (isSessionComplete) {
     return (
-      <div className="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="glass-card p-8 rounded-[2rem] text-center max-w-md w-full border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.2)]">
-          <h1 className="text-4xl font-black italic text-blue-500 mb-2">WORKOUT COMPLETE!</h1>
-          <p className="text-slate-400 font-bold uppercase tracking-widest mb-8">Good Job</p>
-          <div className="text-6xl font-black mb-2">{totalVolume.toLocaleString()}</div>
-          <div className="text-sm font-black text-slate-500 uppercase tracking-widest mb-8">Total Volume (KG)</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full bg-slate-800 border border-slate-700 py-4 rounded-xl font-black uppercase hover:bg-slate-700 transition-colors"
-          >
-            Start New Session
-          </button>
+      <Layout>
+        <div className="min-h-[80vh] flex flex-col items-center justify-center">
+          <div className="glass-card p-8 rounded-[3rem] text-center w-full border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.15)]">
+            <h1 className="text-4xl font-black italic text-blue-500 mb-2">FINISHED!</h1>
+            <p className="text-slate-400 font-bold uppercase tracking-widest mb-10">Amazing Session</p>
+            <div className="text-6xl font-black mb-1">{totalVolume.toLocaleString()}</div>
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-12">Total Volume (KG)</div>
+            <button onClick={() => setView('routine_select')} className="w-full bg-blue-600 dark:bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+              Return Home
+            </button>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center p-4 pb-[calc(2rem+env(safe-area-inset-bottom))] select-none">
-      <div className="w-full max-w-md pb-24">
-        {/* Global Progress */}
-        <div className="w-full bg-slate-800 h-1 rounded-full mb-6 overflow-hidden">
-          <div
-            className="bg-blue-500 h-full transition-all duration-500 will-change-[width]"
-            style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)' }}
-          ></div>
-        </div>
+    <Layout>
+      {/* Training View Header */}
+      <div className={`w-full h-1 rounded-full mb-6 overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`}>
+        <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${progress}%` }} />
+      </div>
 
-        {/* Header */}
-        <header className="flex justify-between items-center mb-6">
+      <header className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-xl font-black italic text-blue-500 uppercase">{activeRoutine.name}</h1>
+          <p className="text-[10px] font-bold text-slate-500">{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-bold text-slate-500 uppercase">Current Vol</p>
+          <p className="text-lg font-black text-blue-400">{totalVolume.toLocaleString()} <span className="text-[10px]">KG</span></p>
+        </div>
+      </header>
+
+      {/* Exercise Card */}
+      <div className="glass-card rounded-[2.5rem] p-7 border border-slate-700/50 shadow-2xl relative mb-6">
+        <div className="flex justify-between items-start mb-2">
+          <h2 className="text-xl font-black leading-tight">{currentExercise?.name}</h2>
+          <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{activeRoutine.exercises.length}</span>
+        </div>
+        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest italic mb-6">{currentExercise?.notes}</p>
+
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-black italic tracking-tighter text-blue-500 uppercase">{PUSH_DAY.name}</h1>
-            <p className="text-[10px] font-bold text-slate-500 tracking-[0.2em]">
-              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()} / {new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-slate-500 uppercase">Total Vol</p>
-            <p className="text-lg font-black text-blue-400 leading-none">
-              {totalVolume.toLocaleString()}<span className="text-[10px] ml-1">KG</span>
-            </p>
-          </div>
-        </header>
-
-        {/* Exercise Card */}
-        <div className="glass-card rounded-[2.5rem] p-7 border border-slate-700/50 shadow-2xl relative overflow-hidden mb-6 transition-all duration-300">
-          <div className="flex justify-between items-start mb-2">
-            <h2 className="text-xl font-black tracking-tight leading-tight">{currentExercise?.name}</h2>
-            {/* Tag example - could be dynamic later */}
-            <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{PUSH_DAY.exercises.length}</span>
-          </div>
-          <div className="flex items-center gap-2 mb-6">
-            <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11H9v2h2V7zm0 4H9v4h2v-4z"></path>
-            </svg>
-            <p className="text-[10px] font-bold text-blue-400/80 uppercase tracking-widest italic">{currentExercise?.notes}</p>
-          </div>
-
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Weight</p>
-              <div className="flex items-baseline">
-                <span className="text-6xl font-black tracking-tighter transition-all">{weight}</span>
-                <span className="text-sm ml-1 font-black italic text-slate-500">KG</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <button
-                onClick={() => setWeight(w => Math.min(32, w + 2))}
-                className="bg-slate-800 w-14 h-12 rounded-t-2xl flex items-center justify-center border border-slate-700 active:scale-95 transition-all hover:text-blue-500"
-              >＋</button>
-              <button
-                onClick={() => setWeight(w => Math.max(2, w - 2))}
-                className="bg-slate-800 w-14 h-12 rounded-b-2xl flex items-center justify-center border border-slate-700 active:scale-95 transition-all hover:text-blue-500"
-              >－</button>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Weight</p>
+            <div className="flex items-baseline">
+              <span className="text-6xl font-black tracking-tighter">{weight}</span>
+              <span className="text-sm ml-1 font-black italic text-slate-500">KG</span>
             </div>
           </div>
-
-          <div className="flex justify-between items-center pt-6 border-t border-slate-800/50">
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase block tracking-widest">Current Set</span>
-              <span className="text-xl font-black text-blue-500">SET {currentSet} / {totalSetsForCurrent}</span>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] font-black text-slate-500 uppercase block tracking-widest">Last Set</span>
-              <span className="text-xl font-black opacity-40 italic">{lastSet ? `${lastSet.weight}kg x ${lastSet.reps}` : '-'}</span>
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <button onClick={() => setWeight(w => Math.min(60, w + 2))} className={`w-14 h-12 rounded-t-2xl flex items-center justify-center border active:scale-95 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>＋</button>
+            <button onClick={() => setWeight(w => Math.max(2, w - 2))} className={`w-14 h-12 rounded-b-2xl flex items-center justify-center border active:scale-95 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>－</button>
           </div>
         </div>
 
-        {/* Action Area */}
-        <div id="action-area" className="min-h-[260px] transition-all">
-          {isResting ? (
-            <RestTimer
-              onSkip={finishRest}
-              onFinish={finishRest}
-            />
-          ) : (
-            <LoggingFlow
-              reps={selectedRepsMap[currentExercise?.id || ''] || 10}
-              onRepsChange={(reps) => setSelectedRepsMap(prev => ({ ...prev, [currentExercise?.id || '']: reps }))}
-              onLog={handleLog}
-            />
-          )}
-        </div>
-
-        {/* History Log */}
-        <div className="mt-8">
-          <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-1">Session History</h3>
-          <div className="space-y-3">
-            {history.slice().reverse().map((set, i) => {
-              // Find exercise name from ID for history display
-              const exName = Object.values(EXERCISES).find(e => e.id === set.exercise_id)?.name || 'Unknown';
-              return (
-                <div key={i} className="flex justify-between items-center bg-slate-800/30 p-4 rounded-2xl border-l-4 border-blue-500/50">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">
-                      {set.rpe === 'easy' ? '😊' : set.rpe === 'just' ? '😐' : '😫'}
-                    </span>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black uppercase tracking-tighter opacity-80">
-                        {exName}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        {new Date(set.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-blue-400 italic">
-                    {set.weight}KG x {set.reps}
-                  </span>
-                </div>
-              );
-            })}
+        <div className={`flex justify-between items-center pt-6 border-t ${theme === 'dark' ? 'border-slate-800/50' : 'border-slate-200'}`}>
+          <div className="text-blue-500 font-black">SET {currentSet} / {totalSetsForCurrent}</div>
+          <div className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            Last: <span className="text-slate-400">{lastSet ? `${lastSet.weight}kg x ${lastSet.reps}` : '-'}</span>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Action Area */}
+      <div className="min-h-[260px]">
+        {isResting ? (
+          <RestTimer theme={theme} onSkip={finishRest} onFinish={finishRest} />
+        ) : (
+          <LoggingFlow
+            theme={theme}
+            reps={selectedRepsMap[currentExercise?.id || ''] || 10}
+            onRepsChange={(reps) => setSelectedRepsMap(prev => ({ ...prev, [currentExercise?.id || '']: reps }))}
+            onLog={handleLog}
+          />
+        )}
+      </div>
+    </Layout>
   );
 }
