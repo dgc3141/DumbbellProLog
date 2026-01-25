@@ -33,6 +33,7 @@ export default function App() {
   const [isResting, setIsResting] = useState(false);
   const [weight, setWeight] = useState(PUSH_DAY.exercises[0].defaultWeight);
   const [isSessionComplete, setIsSessionComplete] = useState(false);
+  const [selectedRepsMap, setSelectedRepsMap] = useState<Record<string, number>>({});
 
   const currentRoutineEntry = PUSH_DAY.exercises[currentExerciseIndex];
   const currentExercise = currentRoutineEntry?.exercise;
@@ -92,7 +93,7 @@ export default function App() {
     setTotalVolume(v => v + weight * reps);
 
     // Quick Save to Backend (Fire and Forget)
-    fetch('http://localhost:3000/log', {
+    fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSet)
@@ -136,8 +137,8 @@ export default function App() {
   }
 
   return (
-    <div className="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center p-4 select-none">
-      <div className="w-full max-w-md pb-20">
+    <div className="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col items-center p-4 pb-[calc(2rem+env(safe-area-inset-bottom))] select-none">
+      <div className="w-full max-w-md pb-24">
         {/* Global Progress */}
         <div className="w-full bg-slate-800 h-1 rounded-full mb-6 overflow-hidden">
           <div
@@ -186,11 +187,11 @@ export default function App() {
             </div>
             <div className="flex flex-col gap-1.5">
               <button
-                onClick={() => setWeight(w => w + 2.5)} // Standard dumbbell increment
+                onClick={() => setWeight(w => Math.min(32, w + 2))}
                 className="bg-slate-800 w-14 h-12 rounded-t-2xl flex items-center justify-center border border-slate-700 active:scale-95 transition-all hover:text-blue-500"
               >＋</button>
               <button
-                onClick={() => setWeight(w => Math.max(0, w - 2.5))}
+                onClick={() => setWeight(w => Math.max(2, w - 2))}
                 className="bg-slate-800 w-14 h-12 rounded-b-2xl flex items-center justify-center border border-slate-700 active:scale-95 transition-all hover:text-blue-500"
               >－</button>
             </div>
@@ -216,7 +217,11 @@ export default function App() {
               onFinish={finishRest}
             />
           ) : (
-            <LoggingFlow key={currentExercise?.id} onLog={handleLog} />
+            <LoggingFlow
+              reps={selectedRepsMap[currentExercise?.id || ''] || 10}
+              onRepsChange={(reps) => setSelectedRepsMap(prev => ({ ...prev, [currentExercise?.id || '']: reps }))}
+              onLog={handleLog}
+            />
           )}
         </div>
 

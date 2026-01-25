@@ -1,10 +1,12 @@
 import type { RpeLevel } from '../types';
 
 interface LoggingFlowProps {
+    reps: number;
+    onRepsChange: (reps: number) => void;
     onLog: (reps: number, rpe: RpeLevel) => void;
 }
 
-export default function LoggingFlow({ onLog }: LoggingFlowProps) {
+export default function LoggingFlow({ reps: selectedReps, onRepsChange, onLog }: LoggingFlowProps) {
     const repsOptions = Array.from({ length: 8 }, (_, i) => i + 8); // 8 to 15 reps
 
     const rpeOptions: { level: RpeLevel; label: string; icon: string; color: string }[] = [
@@ -21,8 +23,11 @@ export default function LoggingFlow({ onLog }: LoggingFlowProps) {
                 {repsOptions.map(reps => (
                     <button
                         key={reps}
-                        className="aspect-square rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xl font-black hover:bg-blue-600 hover:border-blue-500 transition-all active:scale-90"
-                        onClick={() => { /* Simple demo stores it implicitly */ }}
+                        className={`aspect-square rounded-2xl border flex items-center justify-center text-xl font-black transition-all active:scale-90 ${selectedReps === reps
+                            ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                            }`}
+                        onClick={() => onRepsChange(reps)}
                     >
                         {reps}
                     </button>
@@ -36,7 +41,7 @@ export default function LoggingFlow({ onLog }: LoggingFlowProps) {
                     <button
                         key={option.level}
                         className={`flex flex-col items-center justify-center p-4 rounded-3xl border ${option.color} transition-all active:scale-95 hover:brightness-125`}
-                        onClick={() => onLog(10, option.level)}
+                        onClick={() => onLog(selectedReps, option.level)}
                     >
                         <span className="text-2xl mb-1">{option.icon}</span>
                         <span className="text-[10px] font-black uppercase tracking-widest">{option.label}</span>
