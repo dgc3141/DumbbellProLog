@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.progress-bar {
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn-active:active {
+    transform: scale(0.95);
+}
+
+.glass-card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(12px);
+}
