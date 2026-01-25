@@ -22,7 +22,7 @@ export default function LoggingFlow({ onLog }: LoggingFlowProps) {
                     <button
                         key={reps}
                         className="aspect-square rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xl font-black hover:bg-blue-600 hover:border-blue-500 transition-all active:scale-90"
-                        onClick={() => { /* Store reps and move to RPE */ }}
+                        onClick={() => { /* Simple demo stores it implicitly */ }}
                     >
                         {reps}
                     </button>
@@ -36,7 +36,7 @@ export default function LoggingFlow({ onLog }: LoggingFlowProps) {
                     <button
                         key={option.level}
                         className={`flex flex-col items-center justify-center p-4 rounded-3xl border ${option.color} transition-all active:scale-95 hover:brightness-125`}
-                        onClick={() => onLog(10, option.level)} // Actual reps would be from state
+                        onClick={() => onLog(10, option.level)}
                     >
                         <span className="text-2xl mb-1">{option.icon}</span>
                         <span className="text-[10px] font-black uppercase tracking-widest">{option.label}</span>
