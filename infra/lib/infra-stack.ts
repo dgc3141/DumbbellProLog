@@ -107,7 +107,7 @@ export class InfraStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: {
         TABLE_NAME: table.tableName,
-        BEDROCK_MODEL_ID: 'deepseek.deepseek-v3-1',
+        BEDROCK_MODEL_ID: 'deepseek.v3.2',
       },
       architecture: lambda.Architecture.X86_64, // Compatible with host build environment
       memorySize: 256, // Increased for AI processing

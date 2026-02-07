@@ -31,10 +31,14 @@ async fn main() -> Result<(), Error> {
 
     let config = aws_config::load_from_env().await;
     let db_client = DynamoClient::new(&config);
-    let bedrock_client = BedrockClient::new(&config);
+    
+    // DeepSeek V3.2 は us-east-1 で提供されているためリージョンを固定
+    let bedrock_config = aws_config::from_env().region("us-east-1").load().await;
+    let bedrock_client = BedrockClient::new(&bedrock_config);
+
     let table_name = std::env::var("TABLE_NAME").unwrap_or_else(|_| "DumbbellProLog".to_string());
     let bedrock_model_id = std::env::var("BEDROCK_MODEL_ID")
-        .unwrap_or_else(|_| "deepseek.deepseek-v3-1".to_string());
+        .unwrap_or_else(|_| "deepseek.v3.2".to_string());
 
     let state = Arc::new(AppState {
         db_client,
