@@ -359,7 +359,12 @@ export default function App() {
           <h1 className="text-3xl font-black italic text-blue-500">GROWTH</h1>
         </header>
         <div className="glass-card p-6 rounded-[2.5rem] border border-slate-700/50">
-          <StatsDashboard history={history} theme={theme} />
+          <StatsDashboard
+            history={history}
+            theme={theme}
+            session={session}
+            onUpdateHistory={(newHistory) => setHistory(newHistory)}
+          />
         </div>
       </Layout>
     );

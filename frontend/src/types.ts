@@ -39,3 +39,9 @@ export interface AIRecommendation {
     recommendations: ExerciseRecommendation[];
     general_advice: string;
 }
+
+export interface AIAnalysisResponse {
+    insights: string[];
+    plateau_warnings: string[];
+    encouragement: string;
+}

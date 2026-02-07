@@ -14,7 +14,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use types::WorkoutSet;
-use ai::{AIRecommendRequest, AIRecommendResponse, get_training_recommendation};
+use ai::{AIRecommendRequest, AIRecommendResponse, AIAnalysisResponse, get_training_recommendation, get_growth_analysis};
 use chrono::{Utc, Duration};
 
 #[derive(Clone)]
@@ -47,6 +47,8 @@ async fn main() -> Result<(), Error> {
         .route("/", get(root))
         .route("/log", post(log_workout))
         .route("/ai/recommend", post(get_ai_recommendation))
+        .route("/ai/analyze-growth", post(analyze_growth))
+        .route("/stats/history", post(get_full_history))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -140,4 +142,74 @@ async fn get_ai_recommendation(
     })?;
 
     Ok(Json(recommendation))
+}
+
+/// AI長期成長分析エンドポイント
+async fn analyze_growth(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<AIRecommendRequest>,
+) -> Result<Json<AIAnalysisResponse>, (axum::http::StatusCode, String)> {
+    // 全履歴を取得
+    let pk = format!("USER#{}", request.user_id);
+    let sk_prefix = "WORKOUT#";
+
+    let query_result = state.db_client
+        .query()
+        .table_name(&state.table_name)
+        .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
+        .expression_attribute_values(":pk", AttributeValue::S(pk))
+        .expression_attribute_values(":sk_prefix", AttributeValue::S(sk_prefix.to_string()))
+        .send()
+        .await
+        .map_err(|e| {
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+        })?;
+
+    let workout_history: Vec<WorkoutSet> = query_result
+        .items()
+        .iter()
+        .filter_map(|item| serde_dynamo::from_item(item.clone()).ok())
+        .collect();
+
+    // Bedrock AIを呼び出して長期分析を取得
+    let analysis = get_growth_analysis(
+        &state.bedrock_client,
+        &state.bedrock_model_id,
+        &workout_history,
+    )
+    .await
+    .map_err(|e| {
+        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("AI growth analysis failed: {}", e))
+    })?;
+
+    Ok(Json(analysis))
+}
+
+/// 全履歴取得エンドポイント - グラフ表示用に全期間のデータを取得
+async fn get_full_history(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<AIRecommendRequest>, // user_idを含む同じ構造体を使用
+) -> Result<Json<Vec<WorkoutSet>>, (axum::http::StatusCode, String)> {
+    let pk = format!("USER#{}", request.user_id);
+    let sk_prefix = "WORKOUT#";
+
+    let query_result = state.db_client
+        .query()
+        .table_name(&state.table_name)
+        .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
+        .expression_attribute_values(":pk", AttributeValue::S(pk))
+        .expression_attribute_values(":sk_prefix", AttributeValue::S(sk_prefix.to_string()))
+        .send()
+        .await
+        .map_err(|e| {
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+        })?;
+
+    let history: Vec<WorkoutSet> = query_result
+        .items()
+        .iter()
+        .filter_map(|item| serde_dynamo::from_item(item.clone()).ok())
+        .collect();
+
+    Ok(Json(history))
 }
