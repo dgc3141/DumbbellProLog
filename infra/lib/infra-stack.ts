@@ -11,6 +11,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
+import * as cr from 'aws-cdk-lib/custom-resources';
 import * as path from 'path';
 
 export class InfraStack extends cdk.Stack {
@@ -43,6 +44,52 @@ export class InfraStack extends cdk.Stack {
         userSrp: true, // 標準的なログインフロー (SRP) を有効化
       },
     });
+
+    const cfnUserPool = userPool.node.defaultChild as cognito.CfnUserPool;
+    // Removed failed addPropertyOverride
+
+    // Use AwsCustomResource to trigger UpdateUserPool API directly for WebAuthn configuration
+    // This bypasses CloudFormation property support issues.
+    new cr.AwsCustomResource(this, 'UpdateUserPoolWebAuthnConfig', {
+      onCreate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'updateUserPool',
+        parameters: {
+          UserPoolId: userPool.userPoolId,
+          WebAuthnConfiguration: {
+            RelyingPartyId: 'd3d47h1cjnwltv.cloudfront.net',
+            UserVerification: 'PREFERRED',
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('WebAuthnConfigReleaseV1'),
+      },
+      onUpdate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'updateUserPool',
+        parameters: {
+          UserPoolId: userPool.userPoolId,
+          WebAuthnConfiguration: {
+            RelyingPartyId: 'd3d47h1cjnwltv.cloudfront.net',
+            UserVerification: 'PREFERRED',
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('WebAuthnConfigReleaseV1'),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: [userPool.userPoolArn],
+      }),
+    });
+
+    const cfnUserPoolClient = userPoolClient.node.defaultChild as cognito.CfnUserPoolClient;
+    cfnUserPoolClient.allowedOAuthFlows = ['code', 'implicit'];
+    cfnUserPoolClient.allowedOAuthFlowsUserPoolClient = true;
+    cfnUserPoolClient.allowedOAuthScopes = ['phone', 'email', 'openid', 'profile', 'aws.cognito.signin.user.admin'];
+    cfnUserPoolClient.explicitAuthFlows = [
+      'ALLOW_REFRESH_TOKEN_AUTH',
+      'ALLOW_USER_PASSWORD_AUTH',
+      'ALLOW_USER_SRP_AUTH',
+      'ALLOW_USER_AUTH'
+    ];
 
     const authAuthorizer = new HttpUserPoolAuthorizer('AuthAuthorizer', userPool, {
       userPoolClients: [userPoolClient],

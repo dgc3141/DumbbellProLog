@@ -5,16 +5,17 @@ import RestTimer from './components/RestTimer';
 import StatsDashboard from './components/StatsDashboard';
 import RoutineDetail from './components/RoutineDetail';
 import LoginView from './components/LoginView';
+import SettingsView from './components/SettingsView';
 import { ROUTINES } from './routines';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { COGNITO_CONFIG } from './auth-config';
-import { LayoutGrid, BarChart2, CheckCircle2, ChevronRight, Moon, Sun } from 'lucide-react';
+import { LayoutGrid, BarChart2, CheckCircle2, ChevronRight, Moon, Sun, Settings, LogOut } from 'lucide-react';
 
 export default function App() {
   // Global State
   const [history, setHistory] = useState<WorkoutSet[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [view, setView] = useState<'routine_select' | 'routine_detail' | 'training' | 'stats'>('routine_select');
+  const [view, setView] = useState<'routine_select' | 'routine_detail' | 'training' | 'stats' | 'settings'>('routine_select');
 
   // Session State
   const [selectedRoutineIndex, setSelectedRoutineIndex] = useState(0);
@@ -190,19 +191,33 @@ export default function App() {
         </div>
       )}
 
-      {/* Logout Button (Top Right) */}
+      {/* Header Buttons (Top Right) */}
       {session && !hideNav && (
-        <button
-          onClick={() => {
-            const userPool = new CognitoUserPool({ UserPoolId: COGNITO_CONFIG.UserPoolId, ClientId: COGNITO_CONFIG.ClientId });
-            userPool.getCurrentUser()?.signOut();
-            setSession(null);
-            showToast('Logged out');
-          }}
-          className="fixed top-6 right-6 z-50 p-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500"
-        >
-          <Sun size={18} className="rotate-45" /> {/* Use as a placeholder for logout icon or just a simple button */}
-        </button>
+        <div className="fixed top-6 right-6 z-50 flex gap-2">
+          <button
+            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
+          >
+            {theme === 'dark' ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} />}
+          </button>
+          <button
+            onClick={() => setView('settings')}
+            className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
+          >
+            <Settings size={18} />
+          </button>
+          <button
+            onClick={() => {
+              const userPool = new CognitoUserPool({ UserPoolId: COGNITO_CONFIG.UserPoolId, ClientId: COGNITO_CONFIG.ClientId });
+              userPool.getCurrentUser()?.signOut();
+              setSession(null);
+              showToast('Logged out');
+            }}
+            className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
       )}
 
       <div className="w-full max-w-md">
@@ -250,9 +265,6 @@ export default function App() {
       <Layout>
         <header className="flex justify-between items-center mb-10 pt-4">
           <h1 className="text-3xl font-black italic text-blue-500">ROUTINES</h1>
-          <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className="p-2 rounded-xl bg-slate-200 dark:bg-slate-800">
-            {theme === 'dark' ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} />}
-          </button>
         </header>
         <div className="space-y-4">
           {ROUTINES.map((r, i) => (
@@ -291,6 +303,18 @@ export default function App() {
         <div className="glass-card p-6 rounded-[2.5rem] border border-slate-700/50">
           <StatsDashboard history={history} theme={theme} />
         </div>
+      </Layout>
+    );
+  }
+
+  if (view === 'settings') {
+    return (
+      <Layout>
+        <SettingsView
+          theme={theme}
+          session={session}
+          onBack={() => setView('routine_select')}
+        />
       </Layout>
     );
   }

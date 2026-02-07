@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { CognitoUserPool, CognitoUser, AuthenticationDetails } from 'amazon-cognito-identity-js';
+import { CognitoIdentityProviderClient, InitiateAuthCommand, RespondToAuthChallengeCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { COGNITO_CONFIG } from '../auth-config';
-import { Lock, User, LifeBuoy, ArrowLeft, KeyRound, Mail, ShieldCheck } from 'lucide-react';
+import { Lock, User, LifeBuoy, ArrowLeft, KeyRound, Mail, ShieldCheck, Fingerprint } from 'lucide-react';
 
 interface LoginViewProps {
     theme: 'light' | 'dark';
@@ -60,6 +61,142 @@ export default function LoginView({ theme, onLoginSuccess }: LoginViewProps) {
                 console.log('New password required', userAttributes);
             }
         });
+    };
+
+    const handlePasskeyLogin = async () => {
+        if (!username) {
+            setError('Please enter your username to sign in with Passkey.');
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            const client = new CognitoIdentityProviderClient({ region: 'ap-northeast-1' });
+
+            // 1. Initiate Auth with USER_AUTH (WebAuthn)
+            const initiateCommand = new InitiateAuthCommand({
+                ClientId: COGNITO_CONFIG.ClientId,
+                AuthFlow: 'USER_AUTH',
+                AuthParameters: {
+                    USERNAME: username,
+                    PREFERRED_CHALLENGE: 'WEB_AUTHN'
+                }
+            });
+
+            const initiateResponse = await client.send(initiateCommand);
+
+            if (initiateResponse.ChallengeName !== 'WEB_AUTHN') {
+                throw new Error(`Unexpected challenge: ${initiateResponse.ChallengeName}. Passkey might not be registered or supported.`);
+            }
+
+            // 2. Perform WebAuthn Assertion
+            const options = JSON.parse(initiateResponse.ChallengeParameters!.CREDENTIAL_REQUEST_OPTIONS);
+
+            // NOTE: Similar to registration, conversion of converting buffer fields might be needed depending on browser/SDK behavior.
+            // AWS SDK v3 usually handles strict typing, so we cast to any to pass to browser API for now.
+            // In production, robust Base64URL decoding for 'challenge' and 'allowCredentials.id' is required.
+
+            // Minimal conversion logic for 'challenge' and 'allowCredentials' if they are strings
+            // Browser API expects BufferSource.
+            // This logic assumes provided options need conversion. 
+            // IMPORTANT: AWS Cognito returns these as Base64URL strings in JSON.
+            // Browser requires Uint8Array.
+
+            // Simple Base64URL to Uint8Array helper
+            const base64UrlToUint8Array = (base64Url: string) => {
+                const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+                const base64 = (base64Url + padding)
+                    .replace(/-/g, '+')
+                    .replace(/_/g, '/');
+                const rawData = window.atob(base64);
+                const outputArray = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; ++i) {
+                    outputArray[i] = rawData.charCodeAt(i);
+                }
+                return outputArray;
+            };
+
+            const publicKey = {
+                ...options,
+                challenge: base64UrlToUint8Array(options.challenge),
+                allowCredentials: options.allowCredentials?.map((c: any) => ({
+                    ...c,
+                    id: base64UrlToUint8Array(c.id)
+                }))
+            };
+
+            const credential = await navigator.credentials.get({
+                publicKey
+            });
+
+            if (!credential) {
+                throw new Error('Passkey authentication cancelled');
+            }
+
+            // 3. Respond to Auth Challenge
+            // Convert WebAuthn response buffers back to Base64URL strings or what Cognito expects?
+            // Cognito InitiateAuth/RespondToAuthChallenge API expects the credential response as a JSON string
+            // inside the 'CREDENTIAL' parameter.
+
+            // Helper: Uint8Array to Base64URL
+            const uint8ArrayToBase64Url = (buffer: ArrayBuffer) => {
+                const bytes = new Uint8Array(buffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary)
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=+$/, '');
+            };
+
+            const credentialResponse = {
+                id: credential.id,
+                rawId: uint8ArrayToBase64Url((credential as any).rawId),
+                type: credential.type,
+                response: {
+                    authenticatorData: uint8ArrayToBase64Url((credential as any).response.authenticatorData),
+                    clientDataJSON: uint8ArrayToBase64Url((credential as any).response.clientDataJSON),
+                    signature: uint8ArrayToBase64Url((credential as any).response.signature),
+                    userHandle: (credential as any).response.userHandle ? uint8ArrayToBase64Url((credential as any).response.userHandle) : undefined
+                }
+            };
+
+            const respondCommand = new RespondToAuthChallengeCommand({
+                ClientId: COGNITO_CONFIG.ClientId,
+                ChallengeName: 'WEB_AUTHN',
+                Session: initiateResponse.Session,
+                ChallengeResponses: {
+                    USERNAME: username,
+                    CREDENTIAL: JSON.stringify(credentialResponse)
+                }
+            });
+
+            const respondResponse = await client.send(respondCommand);
+
+            // 4. Success handling
+            if (respondResponse.AuthenticationResult) {
+                // Compatible session object for the app
+                const session = {
+                    isValid: () => true,
+                    getIdToken: () => ({ getJwtToken: () => respondResponse.AuthenticationResult!.IdToken }),
+                    getAccessToken: () => ({ getJwtToken: () => respondResponse.AuthenticationResult!.AccessToken }),
+                    getRefreshToken: () => ({ getToken: () => respondResponse.AuthenticationResult!.RefreshToken }),
+                };
+                setIsLoading(false);
+                onLoginSuccess(session);
+            } else {
+                throw new Error('Authentication failed or requires another step.');
+            }
+
+        } catch (err: any) {
+            console.error('Passkey login error:', err);
+            setIsLoading(false);
+            setError(err.message || 'Passkey sign-in failed.');
+        }
     };
 
     const handleForgotPassword = (e: React.FormEvent) => {
@@ -159,13 +296,35 @@ export default function LoginView({ theme, onLoginSuccess }: LoginViewProps) {
                     </div>
                 )}
 
-                <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                    {isLoading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Sign In'}
-                </button>
+                <div className="flex flex-col gap-4">
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                        {isLoading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Sign In'}
+                    </button>
+
+                    <div className="relative flex py-2 items-center">
+                        <div className="flex-grow border-t border-slate-700"></div>
+                        <span className="flex-shrink-0 mx-4 text-slate-500 text-[10px] font-bold uppercase">Or</span>
+                        <div className="flex-grow border-t border-slate-700"></div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handlePasskeyLogin}
+                        disabled={isLoading}
+                        className="w-full bg-slate-700 hover:bg-slate-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                        {isLoading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
+                            <>
+                                <Fingerprint size={18} />
+                                Sign in with Passkey
+                            </>
+                        )}
+                    </button>
+                </div>
 
                 <div className="pt-2 text-center">
                     <button
