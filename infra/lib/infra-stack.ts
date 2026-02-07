@@ -40,6 +40,7 @@ export class InfraStack extends cdk.Stack {
     const userPoolClient = userPool.addClient('UserPoolClient', {
       authFlows: {
         userPassword: true,
+        userSrp: true, // 標準的なログインフロー (SRP) を有効化
       },
     });
 
