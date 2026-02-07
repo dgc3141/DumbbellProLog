@@ -26,3 +26,16 @@ export interface Routine {
     name: string;
     exercises: RoutineExercise[];
 }
+
+// AI推奨機能の型
+export interface ExerciseRecommendation {
+    exercise_id: string;
+    recommended_weight: number;
+    recommended_reps: number;
+    comment: string;
+}
+
+export interface AIRecommendation {
+    recommendations: ExerciseRecommendation[];
+    general_advice: string;
+}

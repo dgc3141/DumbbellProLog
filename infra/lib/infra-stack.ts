@@ -107,12 +107,21 @@ export class InfraStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: {
         TABLE_NAME: table.tableName,
+        BEDROCK_MODEL_ID: 'deepseek.deepseek-v3-1',
       },
-      architecture: lambda.Architecture.ARM_64, // Cost effective
-      memorySize: 128,
+      architecture: lambda.Architecture.X86_64, // Compatible with host build environment
+      memorySize: 256, // Increased for AI processing
+      timeout: cdk.Duration.seconds(30), // Increased for Bedrock calls
     });
 
     table.grantReadWriteData(backendFunction);
+
+    // Bedrock InvokeModel permission
+    backendFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      effect: cdk.aws_iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel', 'bedrock:Converse'],
+      resources: ['*'], // DeepSeek model ARN
+    }));
 
     const api = new apigw.HttpApi(this, 'DumbbellProLogApi', {
       corsPreflight: {

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import type { RpeLevel, WorkoutSet } from './types';
+import type { RpeLevel, WorkoutSet, AIRecommendation } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
 import StatsDashboard from './components/StatsDashboard';
 import RoutineDetail from './components/RoutineDetail';
 import LoginView from './components/LoginView';
 import SettingsView from './components/SettingsView';
+import AIRecommendView from './components/AIRecommendView';
 import { ROUTINES } from './routines';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { COGNITO_CONFIG } from './auth-config';
@@ -30,6 +31,12 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [session, setSession] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // AI推奨機能のstate
+  const [aiRecommendation, setAiRecommendation] = useState<AIRecommendation | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -90,6 +97,46 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app_theme', theme);
   }, [theme]);
+
+  // トレーニング完了時にAI推奨を自動取得
+  useEffect(() => {
+    if (isSessionComplete && session) {
+      fetchAIRecommendation();
+    }
+  }, [isSessionComplete]);
+
+  // AI推奨を取得する関数
+  const fetchAIRecommendation = async () => {
+    if (!session) return;
+
+    setIsAiLoading(true);
+    setAiError(null);
+    setShowAiModal(true);
+
+    try {
+      const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/ai/recommend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': session.getIdToken().getJwtToken()
+        },
+        body: JSON.stringify({ user_id: session.getUsername() })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+
+      const data: AIRecommendation = await response.json();
+      setAiRecommendation(data);
+      vibrate([50, 30, 100]); // Success haptic
+    } catch (e: any) {
+      console.error('AI recommendation error:', e);
+      setAiError(e.message || 'AI推奨の取得に失敗しました');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   // Handle Routine Select
   const peekRoutine = (index: number) => {
@@ -240,6 +287,17 @@ export default function App() {
             <span className="text-[10px] font-black uppercase">Stats</span>
           </button>
         </nav>
+      )}
+
+      {/* AI推奨モーダル */}
+      {showAiModal && (
+        <AIRecommendView
+          recommendation={aiRecommendation}
+          isLoading={isAiLoading}
+          error={aiError}
+          onClose={() => setShowAiModal(false)}
+          theme={theme}
+        />
       )}
     </div>
   );
