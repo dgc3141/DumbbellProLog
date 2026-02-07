@@ -18,3 +18,15 @@ pub struct WorkoutSet {
     pub reps: u32,
     pub rpe: RpeLevel,
 }
+
+impl WorkoutSet {
+    /// DynamoDB Partition Key: USER#[user_id]
+    pub fn pk(&self) -> String {
+        format!("USER#{}", self.user_id)
+    }
+
+    /// DynamoDB Sort Key: WORKOUT#[timestamp]
+    pub fn sk(&self) -> String {
+        format!("WORKOUT#{}", self.timestamp)
+    }
+}

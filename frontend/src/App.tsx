@@ -3,14 +3,18 @@ import type { RpeLevel, WorkoutSet } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
 import StatsDashboard from './components/StatsDashboard';
+import RoutineDetail from './components/RoutineDetail';
+import LoginView from './components/LoginView';
 import { ROUTINES } from './routines';
+import { CognitoUserPool } from 'amazon-cognito-identity-js';
+import { COGNITO_CONFIG } from './auth-config';
 import { LayoutGrid, BarChart2, CheckCircle2, ChevronRight, Moon, Sun } from 'lucide-react';
 
 export default function App() {
   // Global State
   const [history, setHistory] = useState<WorkoutSet[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [view, setView] = useState<'routine_select' | 'training' | 'stats'>('routine_select');
+  const [view, setView] = useState<'routine_select' | 'routine_detail' | 'training' | 'stats'>('routine_select');
 
   // Session State
   const [selectedRoutineIndex, setSelectedRoutineIndex] = useState(0);
@@ -21,6 +25,21 @@ export default function App() {
   const [isSessionComplete, setIsSessionComplete] = useState(false);
   const [selectedRepsMap, setSelectedRepsMap] = useState<Record<string, number>>({});
   const [totalVolume, setTotalVolume] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [session, setSession] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const vibrate = (pattern: number | number[]) => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(pattern);
+    }
+  };
 
   const activeRoutine = ROUTINES[selectedRoutineIndex];
   const currentRoutineEntry = activeRoutine.exercises[currentExerciseIndex];
@@ -44,6 +63,23 @@ export default function App() {
       const idx = ROUTINES.findIndex(r => r.id === lastRoutineId);
       if (idx !== -1) setSelectedRoutineIndex(idx);
     }
+
+    // Check Cognito Session
+    const userPool = new CognitoUserPool({
+      UserPoolId: COGNITO_CONFIG.UserPoolId,
+      ClientId: COGNITO_CONFIG.ClientId,
+    });
+    const user = userPool.getCurrentUser();
+    if (user) {
+      user.getSession((_err: any, session: any) => {
+        if (session && session.isValid()) {
+          setSession(session);
+        }
+        setIsAuthLoading(false);
+      });
+    } else {
+      setIsAuthLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -53,6 +89,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app_theme', theme);
   }, [theme]);
+
+  // Handle Routine Select
+  const peekRoutine = (index: number) => {
+    setSelectedRoutineIndex(index);
+    setView('routine_detail');
+  };
 
   // Handle Routine Start
   const startRoutine = (index: number) => {
@@ -67,26 +109,48 @@ export default function App() {
     localStorage.setItem('last_routine_id', ROUTINES[index].id);
   };
 
-  const handleLog = (reps: number, rpe: RpeLevel) => {
-    if (!currentExercise) return;
+  const handleLog = async (reps: number, rpe: RpeLevel) => {
+    if (!currentExercise || isLoading) return;
+
+    setIsLoading(true);
+    vibrate(50); // Short haptic feedback for tap
+
     const newSet: WorkoutSet = {
-      user_id: 'default',
+      user_id: session.getUsername(),
       timestamp: new Date().toISOString(),
       exercise_id: currentExercise.id,
       weight,
       reps,
       rpe
     };
-    setHistory(prev => [...prev, newSet]);
-    setTotalVolume(v => v + weight * reps);
-    setIsResting(true);
 
-    // API Call
-    fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newSet)
-    }).catch(e => console.warn(e));
+    try {
+      const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': session.getIdToken().getJwtToken()
+        },
+        body: JSON.stringify(newSet)
+      });
+
+      if (!response.ok) throw new Error('Failed to save');
+
+      setHistory(prev => [...prev, newSet]);
+      setTotalVolume(v => v + weight * reps);
+      setIsResting(true);
+      vibrate([50, 30, 50]); // Multi-tap haptic success
+      showToast('Log Saved Successfully');
+    } catch (e) {
+      console.warn(e);
+      showToast('Sync Failed - Saved Locally', 'error');
+      // Still allow continuation offline
+      setHistory(prev => [...prev, newSet]);
+      setTotalVolume(v => v + weight * reps);
+      setIsResting(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const finishRest = () => {
@@ -117,29 +181,69 @@ export default function App() {
 
   // --- RENDERING ---
 
-  const Layout = ({ children }: { children: React.ReactNode }) => (
+  const Layout = ({ children, hideNav = false }: { children: React.ReactNode, hideNav?: boolean }) => (
     <div className={`min-h-screen flex flex-col items-center p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] select-none transition-colors duration-500 ${theme} ${theme === 'dark' ? 'bg-[#0f172a] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full font-black text-sm shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300 ${toast.type === 'success' ? 'bg-blue-600 text-white' : 'bg-red-500 text-white'}`}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Logout Button (Top Right) */}
+      {session && !hideNav && (
+        <button
+          onClick={() => {
+            const userPool = new CognitoUserPool({ UserPoolId: COGNITO_CONFIG.UserPoolId, ClientId: COGNITO_CONFIG.ClientId });
+            userPool.getCurrentUser()?.signOut();
+            setSession(null);
+            showToast('Logged out');
+          }}
+          className="fixed top-6 right-6 z-50 p-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500"
+        >
+          <Sun size={18} className="rotate-45" /> {/* Use as a placeholder for logout icon or just a simple button */}
+        </button>
+      )}
+
       <div className="w-full max-w-md">
         {children}
       </div>
 
       {/* Bottom Nav */}
-      <nav className={`fixed bottom-0 left-0 right-0 p-4 border-t glass-card flex justify-around items-center z-50 rounded-t-3xl ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
-        <button onClick={() => setView('routine_select')} className={`flex flex-col items-center gap-1 ${view === 'routine_select' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <LayoutGrid size={20} />
-          <span className="text-[10px] font-black uppercase">Routines</span>
-        </button>
-        <button onClick={() => setView('training')} className={`flex flex-col items-center gap-1 ${view === 'training' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <CheckCircle2 size={20} />
-          <span className="text-[10px] font-black uppercase">Session</span>
-        </button>
-        <button onClick={() => setView('stats')} className={`flex flex-col items-center gap-1 ${view === 'stats' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <BarChart2 size={20} />
-          <span className="text-[10px] font-black uppercase">Stats</span>
-        </button>
-      </nav>
+      {!hideNav && (
+        <nav className={`fixed bottom-0 left-0 right-0 p-4 border-t glass-card flex justify-around items-center z-50 rounded-t-3xl ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+          <button onClick={() => setView('routine_select')} className={`flex flex-col items-center gap-1 ${view === 'routine_select' || view === 'routine_detail' ? 'text-blue-500' : 'text-slate-500'}`}>
+            <LayoutGrid size={20} />
+            <span className="text-[10px] font-black uppercase">Routines</span>
+          </button>
+          <button onClick={() => setView('training')} className={`flex flex-col items-center gap-1 ${view === 'training' ? 'text-blue-500' : 'text-slate-500'}`}>
+            <CheckCircle2 size={20} />
+            <span className="text-[10px] font-black uppercase">Session</span>
+          </button>
+          <button onClick={() => setView('stats')} className={`flex flex-col items-center gap-1 ${view === 'stats' ? 'text-blue-500' : 'text-slate-500'}`}>
+            <BarChart2 size={20} />
+            <span className="text-[10px] font-black uppercase">Stats</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
+
+  if (isAuthLoading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-50'}`}>
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <Layout hideNav>
+        <LoginView theme={theme} onLoginSuccess={(s) => setSession(s)} />
+      </Layout>
+    );
+  }
 
   if (view === 'routine_select') {
     return (
@@ -152,7 +256,7 @@ export default function App() {
         </header>
         <div className="space-y-4">
           {ROUTINES.map((r, i) => (
-            <button key={r.id} onClick={() => startRoutine(i)} className="w-full glass-card p-6 rounded-3xl border border-slate-700/50 flex justify-between items-center active:scale-[0.98] transition-all text-left">
+            <button key={r.id} onClick={() => peekRoutine(i)} className="w-full glass-card p-6 rounded-3xl border border-slate-700/50 flex justify-between items-center active:scale-[0.98] transition-all text-left">
               <div>
                 <p className="text-[10px] font-black uppercase text-blue-500 mb-1">{r.exercises.length} Exercises</p>
                 <h2 className="text-xl font-black italic">{r.name}</h2>
@@ -163,6 +267,19 @@ export default function App() {
         </div>
       </Layout>
     );
+  }
+
+  if (view === 'routine_detail') {
+    return (
+      <Layout hideNav>
+        <RoutineDetail
+          routine={activeRoutine}
+          theme={theme}
+          onBack={() => setView('routine_select')}
+          onStart={() => startRoutine(selectedRoutineIndex)}
+        />
+      </Layout>
+    )
   }
 
   if (view === 'stats') {
@@ -252,6 +369,7 @@ export default function App() {
           <LoggingFlow
             theme={theme}
             reps={selectedRepsMap[currentExercise?.id || ''] || 10}
+            isLoading={isLoading}
             onRepsChange={(reps) => setSelectedRepsMap(prev => ({ ...prev, [currentExercise?.id || '']: reps }))}
             onLog={handleLog}
           />

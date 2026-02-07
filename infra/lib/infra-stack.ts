@@ -9,6 +9,8 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
+import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import * as path from 'path';
 
 export class InfraStack extends cdk.Stack {
@@ -26,7 +28,27 @@ export class InfraStack extends cdk.Stack {
     });
 
     // ========================================================================
-    // 2. Backend (Lambda + API Gateway)
+    // 2. Auth (Cognito) - Private Use
+    // ========================================================================
+    const userPool = new cognito.UserPool(this, 'UserPool', {
+      selfSignUpEnabled: false, // Private use only
+      signInAliases: { username: true, email: true },
+      autoVerify: { email: true },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const userPoolClient = userPool.addClient('UserPoolClient', {
+      authFlows: {
+        userPassword: true,
+      },
+    });
+
+    const authAuthorizer = new HttpUserPoolAuthorizer('AuthAuthorizer', userPool, {
+      userPoolClients: [userPoolClient],
+    });
+
+    // ========================================================================
+    // 3. Backend (Lambda + API Gateway)
     // ========================================================================
     // Assumes the Rust binary is built and located at ../backend/target/lambda/backend
     // We will use a makefile or just copy it there manually for now.
@@ -55,6 +77,7 @@ export class InfraStack extends cdk.Stack {
       path: '/{proxy+}',
       methods: [apigw.HttpMethod.ANY],
       integration: new integrations.HttpLambdaIntegration('BackendIntegration', backendFunction),
+      authorizer: authAuthorizer,
     });
 
     // ========================================================================
@@ -93,5 +116,7 @@ export class InfraStack extends cdk.Stack {
     // ========================================================================
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.url! });
     new cdk.CfnOutput(this, 'FrontendUrl', { value: distribution.domainName });
+    new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
+    new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
   }
 }
