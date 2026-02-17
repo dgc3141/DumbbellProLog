@@ -13,10 +13,34 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as path from 'path';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export class InfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // ========================================================================
+    // 0. CI/CD (GitHub Actions OIDC)
+    // ========================================================================
+    const provider = new iam.OpenIdConnectProvider(this, 'GitHubProvider', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+    });
+
+    const repoName = 'dgc3141/DumbbellProLog'; // GitHub Repository Name
+    const role = new iam.Role(this, 'GitHubDeployRole', {
+      assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
+        StringLike: {
+          'token.actions.githubusercontent.com:sub': `repo:${repoName}:*`,
+        },
+      }),
+      description: 'Role for GitHub Actions to deploy with CDK',
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess'),
+      ],
+    });
+
+    new cdk.CfnOutput(this, 'GitHubDeployRoleArn', { value: role.roleArn });
 
     // ========================================================================
     // 1. DynamoDB
