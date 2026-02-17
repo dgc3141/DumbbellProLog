@@ -109,7 +109,25 @@ mod tests {
         };
 
         let json = serde_json::to_string(&menu).unwrap();
-        assert!(json.contains("\"bodyPart\":\"push\"")); // camelCase check
-        assert!(json.contains("\"durationMinutes\":15"));
+        let actual: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let expected = serde_json::json!({
+            "bodyPart": "push",
+            "durationMinutes": 15,
+            "exercises": [
+                {
+                    "exerciseName": "Push Up",
+                    "sets": 3,
+                    "reps": 10,
+                    "recommendedWeight": 0.0,
+                    "restSeconds": 60,
+                    "notes": "Keep straight"
+                }
+            ],
+            "totalRestSeconds": 180,
+            "generatedAt": "2023-01-01T12:00:00Z"
+        });
+
+        assert_eq!(actual, expected);
     }
 }
