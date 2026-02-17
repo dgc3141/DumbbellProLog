@@ -1,25 +1,23 @@
-
 mod ai;
 mod types;
 
-use axum::{
-    extract::{Json, State},
-    routing::{get, post},
-    Router,
+use ai::{
+    AIAnalysisResponse, AIRecommendRequest, AIRecommendResponse, GenerateMenusRequest,
+    GenerateMenusResponse, generate_timed_menus, get_growth_analysis, get_training_recommendation,
 };
 use aws_sdk_dynamodb::{Client as DynamoClient, types::AttributeValue};
-use lambda_http::{run, tracing, Error};
+use axum::{
+    Router,
+    extract::{Json, State},
+    routing::{get, post},
+};
+use chrono::{Duration, Utc};
+use lambda_http::{Error, run, tracing};
 use reqwest::Client as HttpClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
-use types::{WorkoutSet, AIInfoResponse, MenuByDurationRequest, TimedMenu};
-use ai::{
-    AIRecommendRequest, AIRecommendResponse, AIAnalysisResponse,
-    GenerateMenusRequest, GenerateMenusResponse,
-    get_training_recommendation, get_growth_analysis, generate_timed_menus,
-};
-use chrono::{Utc, Duration};
+use types::{AIInfoResponse, MenuByDurationRequest, TimedMenu, WorkoutSet};
 
 #[derive(Clone)]
 struct AppState {
@@ -39,10 +37,9 @@ async fn main() -> Result<(), Error> {
     let http_client = HttpClient::new();
 
     let table_name = std::env::var("TABLE_NAME").unwrap_or_else(|_| "DumbbellProLog".to_string());
-    let gemini_model_id = std::env::var("GEMINI_MODEL_ID")
-        .unwrap_or_else(|_| "gemini-3.0-flash".to_string());
-    let gemini_api_key = std::env::var("GEMINI_API_KEY")
-        .unwrap_or_else(|_| String::new());
+    let gemini_model_id =
+        std::env::var("GEMINI_MODEL_ID").unwrap_or_else(|_| "gemini-3.0-flash".to_string());
+    let gemini_api_key = std::env::var("GEMINI_API_KEY").unwrap_or_else(|_| String::new());
 
     let state = Arc::new(AppState {
         db_client,
@@ -84,22 +81,30 @@ async fn log_workout(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<WorkoutSet>,
 ) -> Result<Json<WorkoutSet>, (axum::http::StatusCode, String)> {
-    let mut item: std::collections::HashMap<String, AttributeValue> = serde_dynamo::to_item(&payload).map_err(|e| {
-        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Serialization failed: {}", e))
-    })?;
+    let mut item: std::collections::HashMap<String, AttributeValue> =
+        serde_dynamo::to_item(&payload).map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Serialization failed: {}", e),
+            )
+        })?;
 
     // Add keys for GSIs or general structure if needed
     item.insert("PK".to_string(), AttributeValue::S(payload.pk()));
     item.insert("SK".to_string(), AttributeValue::S(payload.sk()));
 
-    state.db_client
+    state
+        .db_client
         .put_item()
         .table_name(&state.table_name)
         .set_item(Some(item))
         .send()
         .await
         .map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB error: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB error: {}", e),
+            )
         })?;
 
     println!("Saved log to DynamoDB: {:?}", payload);
@@ -119,7 +124,8 @@ async fn get_ai_recommendation(
     let pk = format!("USER#{}", request.user_id);
     let sk_prefix = "WORKOUT#";
 
-    let query_result = state.db_client
+    let query_result = state
+        .db_client
         .query()
         .table_name(&state.table_name)
         .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
@@ -130,7 +136,10 @@ async fn get_ai_recommendation(
         .send()
         .await
         .map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB query failed: {}", e),
+            )
         })?;
 
     // DynamoDBの結果をWorkoutSetに変換
@@ -140,7 +149,11 @@ async fn get_ai_recommendation(
         .filter_map(|item| serde_dynamo::from_item(item.clone()).ok())
         .collect();
 
-    println!("Found {} workout records for user {}", workout_history.len(), request.user_id);
+    println!(
+        "Found {} workout records for user {}",
+        workout_history.len(),
+        request.user_id
+    );
 
     // Gemini AIを呼び出して推奨を取得
     let recommendation = get_training_recommendation(
@@ -151,7 +164,10 @@ async fn get_ai_recommendation(
     )
     .await
     .map_err(|e| {
-        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("AI recommendation failed: {}", e))
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("AI recommendation failed: {}", e),
+        )
     })?;
 
     Ok(Json(recommendation))
@@ -166,7 +182,8 @@ async fn analyze_growth(
     let pk = format!("USER#{}", request.user_id);
     let sk_prefix = "WORKOUT#";
 
-    let query_result = state.db_client
+    let query_result = state
+        .db_client
         .query()
         .table_name(&state.table_name)
         .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
@@ -175,7 +192,10 @@ async fn analyze_growth(
         .send()
         .await
         .map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB query failed: {}", e),
+            )
         })?;
 
     let workout_history: Vec<WorkoutSet> = query_result
@@ -193,16 +213,17 @@ async fn analyze_growth(
     )
     .await
     .map_err(|e| {
-        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("AI growth analysis failed: {}", e))
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("AI growth analysis failed: {}", e),
+        )
     })?;
 
     Ok(Json(analysis))
 }
 
 /// AI情報エンドポイント - 管理画面から使用AIモデルを確認する
-async fn get_ai_info(
-    State(state): State<Arc<AppState>>,
-) -> Json<AIInfoResponse> {
+async fn get_ai_info(State(state): State<Arc<AppState>>) -> Json<AIInfoResponse> {
     Json(AIInfoResponse {
         model_name: "Gemini 3 Flash".to_string(),
         provider: "Google AI Studio".to_string(),
@@ -219,7 +240,8 @@ async fn trigger_menu_generation(
     let pk = format!("USER#{}", request.user_id);
     let sk_prefix = "WORKOUT#";
 
-    let query_result = state.db_client
+    let query_result = state
+        .db_client
         .query()
         .table_name(&state.table_name)
         .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
@@ -230,7 +252,10 @@ async fn trigger_menu_generation(
         .send()
         .await
         .map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB query failed: {}", e),
+            )
         })?;
 
     let workout_history: Vec<WorkoutSet> = query_result
@@ -248,29 +273,43 @@ async fn trigger_menu_generation(
     )
     .await
     .map_err(|e| {
-        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Menu generation failed: {}", e))
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Menu generation failed: {}", e),
+        )
     })?;
 
     // 生成したメニューをDynamoDBに保存
     for menu in &menus {
         let menu_item = serde_dynamo::to_item(menu).map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Menu serialization failed: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Menu serialization failed: {}", e),
+            )
         })?;
 
         let mut item: std::collections::HashMap<String, AttributeValue> = menu_item;
         item.insert("PK".to_string(), AttributeValue::S(pk.clone()));
-        item.insert("SK".to_string(), AttributeValue::S(
-            format!("MENU#{}#{}min", menu.body_part, menu.duration_minutes)
-        ));
+        item.insert(
+            "SK".to_string(),
+            AttributeValue::S(format!(
+                "MENU#{}#{}min",
+                menu.body_part, menu.duration_minutes
+            )),
+        );
 
-        state.db_client
+        state
+            .db_client
             .put_item()
             .table_name(&state.table_name)
             .set_item(Some(item))
             .send()
             .await
             .map_err(|e| {
-                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB put failed: {}", e))
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("DynamoDB put failed: {}", e),
+                )
             })?;
     }
 
@@ -290,7 +329,8 @@ async fn get_menus_by_duration(
     let sk_suffix = format!("{}min", request.duration_minutes);
 
     // 指定時間のメニューを全部位から取得
-    let query_result = state.db_client
+    let query_result = state
+        .db_client
         .query()
         .table_name(&state.table_name)
         .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
@@ -299,7 +339,10 @@ async fn get_menus_by_duration(
         .send()
         .await
         .map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB query failed: {}", e),
+            )
         })?;
 
     let menus: Vec<TimedMenu> = query_result
@@ -327,7 +370,8 @@ async fn get_full_history(
     let pk = format!("USER#{}", request.user_id);
     let sk_prefix = "WORKOUT#";
 
-    let query_result = state.db_client
+    let query_result = state
+        .db_client
         .query()
         .table_name(&state.table_name)
         .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
@@ -336,7 +380,10 @@ async fn get_full_history(
         .send()
         .await
         .map_err(|e| {
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB query failed: {}", e),
+            )
         })?;
 
     let history: Vec<WorkoutSet> = query_result

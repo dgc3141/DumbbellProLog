@@ -5,7 +5,7 @@
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 
-use crate::types::{WorkoutSet, TimedMenu};
+use crate::types::{TimedMenu, WorkoutSet};
 
 // === Gemini API リクエスト/レスポンス型 ===
 
@@ -163,7 +163,8 @@ pub async fn get_training_recommendation(
     if workout_history.is_empty() {
         return Ok(AIRecommendResponse {
             recommendations: vec![],
-            general_advice: "トレーニング履歴がありません。まずトレーニングを記録してください。".to_string(),
+            general_advice: "トレーニング履歴がありません。まずトレーニングを記録してください。"
+                .to_string(),
         });
     }
 
@@ -215,7 +216,9 @@ pub async fn get_growth_analysis(
 ) -> Result<AIAnalysisResponse, String> {
     if workout_history.is_empty() {
         return Ok(AIAnalysisResponse {
-            insights: vec!["まだ十分なデータがありません。トレーニングを継続しましょう！".to_string()],
+            insights: vec![
+                "まだ十分なデータがありません。トレーニングを継続しましょう！".to_string(),
+            ],
             plateau_warnings: vec![],
             encouragement: "最初の一歩を踏み出しましょう。".to_string(),
         });
@@ -265,8 +268,7 @@ pub async fn generate_timed_menus(
         "トレーニング履歴なし（初心者向けメニューを作成してください）".to_string()
     } else {
         let recent: Vec<_> = workout_history.iter().rev().take(20).collect();
-        serde_json::to_string(&recent)
-            .map_err(|e| format!("履歴のシリアライズに失敗: {}", e))?
+        serde_json::to_string(&recent).map_err(|e| format!("履歴のシリアライズに失敗: {}", e))?
     };
 
     let prompt = format!(
@@ -343,7 +345,8 @@ mod tests {
             }
         ]"#;
 
-        let menus: Vec<TimedMenu> = serde_json::from_str(sample_json).expect("Failed to parse JSON");
+        let menus: Vec<TimedMenu> =
+            serde_json::from_str(sample_json).expect("Failed to parse JSON");
         assert_eq!(menus.len(), 1);
         assert_eq!(menus[0].body_part, "push");
         assert_eq!(menus[0].exercises[0].exercise_name, "Push Up");

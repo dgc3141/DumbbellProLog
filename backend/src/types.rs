@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -49,8 +48,8 @@ pub struct MenuExercise {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TimedMenu {
-    pub body_part: String,        // "push" | "pull" | "legs"
-    pub duration_minutes: u32,    // 15 | 30 | 60
+    pub body_part: String,     // "push" | "pull" | "legs"
+    pub duration_minutes: u32, // 15 | 30 | 60
     pub exercises: Vec<MenuExercise>,
     pub total_rest_seconds: u32,
     pub generated_at: String,
@@ -97,16 +96,14 @@ mod tests {
         let menu = TimedMenu {
             body_part: "push".to_string(),
             duration_minutes: 15,
-            exercises: vec![
-                MenuExercise {
-                    exercise_name: "Push Up".to_string(),
-                    sets: 3,
-                    reps: 10,
-                    recommended_weight: 0.0,
-                    rest_seconds: 60,
-                    notes: "Keep straight".to_string(),
-                }
-            ],
+            exercises: vec![MenuExercise {
+                exercise_name: "Push Up".to_string(),
+                sets: 3,
+                reps: 10,
+                recommended_weight: 0.0,
+                rest_seconds: 60,
+                notes: "Keep straight".to_string(),
+            }],
             total_rest_seconds: 180,
             generated_at: "2023-01-01T12:00:00Z".to_string(),
         };
