@@ -1,11 +1,57 @@
-// AIモジュール - AWS Bedrock DeepSeek V3.1統合
+// AIモジュール - Google AI Studio (Gemini 3 Flash) 統合
 // トレーニング履歴を分析し、次回の推奨重量・回数を提案する
+// 部位×時間別のトレーニングメニューを自動生成する
 
-use aws_sdk_bedrockruntime::Client as BedrockClient;
-use aws_sdk_bedrockruntime::types::ContentBlock;
+use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 
-use crate::types::WorkoutSet;
+use crate::types::{WorkoutSet, TimedMenu};
+
+// === Gemini API リクエスト/レスポンス型 ===
+
+#[derive(Debug, Serialize)]
+struct GeminiRequest {
+    contents: Vec<GeminiContent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    generation_config: Option<GeminiGenerationConfig>,
+}
+
+#[derive(Debug, Serialize)]
+struct GeminiContent {
+    parts: Vec<GeminiPart>,
+}
+
+#[derive(Debug, Serialize)]
+struct GeminiPart {
+    text: String,
+}
+
+#[derive(Debug, Serialize)]
+struct GeminiGenerationConfig {
+    response_mime_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiResponse {
+    candidates: Option<Vec<GeminiCandidate>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiCandidate {
+    content: GeminiCandidateContent,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiCandidateContent {
+    parts: Vec<GeminiResponsePart>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiResponsePart {
+    text: String,
+}
+
+// === 公開API型 ===
 
 /// AI推奨リクエスト
 #[derive(Debug, Serialize, Deserialize)]
@@ -37,13 +83,83 @@ pub struct AIAnalysisResponse {
     pub encouragement: String,
 }
 
-/// Bedrock DeepSeek V3.1を呼び出してトレーニング推奨を取得
+/// メニュー生成リクエスト
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateMenusRequest {
+    pub user_id: String,
+}
+
+/// メニュー生成レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateMenusResponse {
+    pub menus: Vec<TimedMenu>,
+    pub generated_count: usize,
+}
+
+// === Gemini 呼び出し共通ヘルパー ===
+
+/// Gemini API にプロンプトを送信し、テキストレスポンスを取得する
+async fn call_gemini(
+    http_client: &HttpClient,
+    api_key: &str,
+    model_id: &str,
+    prompt: &str,
+) -> Result<String, String> {
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+        model_id, api_key
+    );
+
+    let request_body = GeminiRequest {
+        contents: vec![GeminiContent {
+            parts: vec![GeminiPart {
+                text: prompt.to_string(),
+            }],
+        }],
+        generation_config: Some(GeminiGenerationConfig {
+            response_mime_type: "application/json".to_string(),
+        }),
+    };
+
+    let response = http_client
+        .post(&url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Gemini API呼び出しに失敗: {}", e))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_default();
+        return Err(format!("Gemini APIエラー ({}): {}", status, error_body));
+    }
+
+    let gemini_response: GeminiResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Geminiレスポンスのパースに失敗: {}", e))?;
+
+    let text = gemini_response
+        .candidates
+        .as_ref()
+        .and_then(|c| c.first())
+        .and_then(|c| c.content.parts.first())
+        .map(|p| p.text.clone())
+        .ok_or_else(|| "Geminiからのレスポンスが空です".to_string())?;
+
+    Ok(text)
+}
+
+// === 公開API関数 ===
+
+/// Gemini を呼び出してトレーニング推奨を取得
 pub async fn get_training_recommendation(
-    bedrock_client: &BedrockClient,
+    http_client: &HttpClient,
+    api_key: &str,
     model_id: &str,
     workout_history: &[WorkoutSet],
 ) -> Result<AIRecommendResponse, String> {
-    // 履歴がない場合はデフォルトレスポンスを返す
     if workout_history.is_empty() {
         return Ok(AIRecommendResponse {
             recommendations: vec![],
@@ -51,7 +167,6 @@ pub async fn get_training_recommendation(
         });
     }
 
-    // プロンプトを構築
     let history_json = serde_json::to_string_pretty(workout_history)
         .map_err(|e| format!("履歴のシリアライズに失敗: {}", e))?;
 
@@ -83,42 +198,8 @@ pub async fn get_training_recommendation(
         history_json
     );
 
-    // Bedrock Converse APIを呼び出し
-    let response = bedrock_client
-        .converse()
-        .model_id(model_id)
-        .messages(
-            aws_sdk_bedrockruntime::types::Message::builder()
-                .role(aws_sdk_bedrockruntime::types::ConversationRole::User)
-                .content(ContentBlock::Text(prompt))
-                .build()
-                .map_err(|e| format!("メッセージ構築に失敗: {}", e))?,
-        )
-        .send()
-        .await
-        .map_err(|e| format!("Bedrock呼び出しに失敗: {}", e))?;
+    let text = call_gemini(http_client, api_key, model_id, &prompt).await?;
 
-    // レスポンスからテキストを抽出
-    let output = response.output().ok_or("レスポンスが空です")?;
-    let message = match output {
-        aws_sdk_bedrockruntime::types::ConverseOutput::Message(msg) => msg,
-        _ => return Err("予期しないレスポンス形式です".to_string()),
-    };
-
-    let text = message
-        .content()
-        .iter()
-        .filter_map(|block| {
-            if let ContentBlock::Text(text) = block {
-                Some(text.as_str())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("");
-
-    // JSONをパース
     let recommendation: AIRecommendResponse = serde_json::from_str(&text)
         .map_err(|e| format!("AIレスポンスのパースに失敗: {}. 元のテキスト: {}", e, text))?;
 
@@ -127,7 +208,8 @@ pub async fn get_training_recommendation(
 
 /// 全期間の履歴を分析し、長期的な成長インサイトを取得
 pub async fn get_growth_analysis(
-    bedrock_client: &BedrockClient,
+    http_client: &HttpClient,
+    api_key: &str,
     model_id: &str,
     workout_history: &[WorkoutSet],
 ) -> Result<AIAnalysisResponse, String> {
@@ -164,41 +246,73 @@ pub async fn get_growth_analysis(
         history_json
     );
 
-    let response = bedrock_client
-        .converse()
-        .model_id(model_id)
-        .messages(
-            aws_sdk_bedrockruntime::types::Message::builder()
-                .role(aws_sdk_bedrockruntime::types::ConversationRole::User)
-                .content(ContentBlock::Text(prompt))
-                .build()
-                .map_err(|e| format!("メッセージ構築に失敗: {}", e))?,
-        )
-        .send()
-        .await
-        .map_err(|e| format!("Bedrock呼び出しに失敗: {}", e))?;
-
-    let output = response.output().ok_or("レスポンスが空です")?;
-    let message = match output {
-        aws_sdk_bedrockruntime::types::ConverseOutput::Message(msg) => msg,
-        _ => return Err("予期しないレスポンス形式です".to_string()),
-    };
-
-    let text = message
-        .content()
-        .iter()
-        .filter_map(|block| {
-            if let ContentBlock::Text(text) = block {
-                Some(text.as_str())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("");
+    let text = call_gemini(http_client, api_key, model_id, &prompt).await?;
 
     let analysis: AIAnalysisResponse = serde_json::from_str(&text)
         .map_err(|e| format!("AIレスポンスのパースに失敗: {}. 元のテキスト: {}", e, text))?;
 
     Ok(analysis)
+}
+
+/// 部位×時間別のトレーニングメニューを一括生成
+pub async fn generate_timed_menus(
+    http_client: &HttpClient,
+    api_key: &str,
+    model_id: &str,
+    workout_history: &[WorkoutSet],
+) -> Result<Vec<TimedMenu>, String> {
+    let history_summary = if workout_history.is_empty() {
+        "トレーニング履歴なし（初心者向けメニューを作成してください）".to_string()
+    } else {
+        let recent: Vec<_> = workout_history.iter().rev().take(20).collect();
+        serde_json::to_string(&recent)
+            .map_err(|e| format!("履歴のシリアライズに失敗: {}", e))?
+    };
+
+    let prompt = format!(
+        r#"あなたはダンベルトレーニング専門のパーソナルトレーナーです。
+以下のトレーニング履歴を元に、3つの部位（push/pull/legs）× 3つの時間（15分/30分/60分）= 合計9パターンのトレーニングメニューを生成してください。
+
+## 重要なルール
+- ダンベルのみで実施可能なエクササイズに限定
+- レスト時間は種目の強度と時間枠に応じて最適化
+  - 15分メニュー: レスト30-45秒（テンポ重視）
+  - 30分メニュー: レスト45-90秒（バランス重視）
+  - 60分メニュー: レスト90-180秒（筋力重視）
+- 各メニューの合計時間（エクササイズ時間＋レスト）が指定時間に収まるように調整
+
+## ユーザーの直近履歴
+{}
+
+## 出力形式
+以下のJSON形式「のみ」で回答してください：
+[
+  {{
+    "bodyPart": "push",
+    "durationMinutes": 15,
+    "exercises": [
+      {{
+        "exerciseName": "種目名（日本語）",
+        "sets": 3,
+        "reps": 12,
+        "recommendedWeight": 10.0,
+        "restSeconds": 30,
+        "notes": "フォームのポイント"
+      }}
+    ],
+    "totalRestSeconds": 180,
+    "generatedAt": "2026-02-17T21:00:00Z"
+  }}
+]
+
+合計9パターン（push×3時間, pull×3時間, legs×3時間）を配列で返してください。"#,
+        history_summary
+    );
+
+    let text = call_gemini(http_client, api_key, model_id, &prompt).await?;
+
+    let menus: Vec<TimedMenu> = serde_json::from_str(&text)
+        .map_err(|e| format!("メニューのパースに失敗: {}. 元のテキスト: {}", e, text))?;
+
+    Ok(menus)
 }

@@ -29,7 +29,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': session.getIdToken().getJwtToken()
+                        'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
                     },
                     body: JSON.stringify({ user_id: session.getUsername() })
                 });
@@ -105,8 +105,8 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                     value={selectedExerciseId}
                     onChange={(e) => setSelectedExerciseId(e.target.value)}
                     className={`w-full max-w-xs p-3 rounded-2xl text-sm font-bold appearance-none text-center ${theme === 'dark'
-                            ? 'bg-slate-800 border-slate-700 text-slate-200'
-                            : 'bg-white border-slate-200 text-slate-800 shadow-sm'
+                        ? 'bg-slate-800 border-slate-700 text-slate-200'
+                        : 'bg-white border-slate-200 text-slate-800 shadow-sm'
                         } border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all`}
                 >
                     {Object.values(EXERCISES).map((ex) => (
@@ -142,7 +142,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                 ) : isAnalyzing ? (
                     <div className="flex flex-col items-center justify-center py-4">
                         <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-2" />
-                        <p className="text-sm text-slate-500">DeepSeekが全履歴を分析中...</p>
+                        <p className="text-sm text-slate-500">Geminiが全履歴を分析中...</p>
                     </div>
                 ) : analysis && (
                     <div className="space-y-6">

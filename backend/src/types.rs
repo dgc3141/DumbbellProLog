@@ -30,3 +30,45 @@ impl WorkoutSet {
         format!("WORKOUT#{}", self.timestamp)
     }
 }
+
+// === 時間ベースメニュー関連の型 ===
+
+/// メニュー内の個別エクササイズ
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MenuExercise {
+    pub exercise_name: String,
+    pub sets: u32,
+    pub reps: u32,
+    pub recommended_weight: f64,
+    pub rest_seconds: u32,
+    pub notes: String,
+}
+
+/// 時間×部位ごとのトレーニングメニュー
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TimedMenu {
+    pub body_part: String,        // "push" | "pull" | "legs"
+    pub duration_minutes: u32,    // 15 | 30 | 60
+    pub exercises: Vec<MenuExercise>,
+    pub total_rest_seconds: u32,
+    pub generated_at: String,
+}
+
+/// メニュー取得リクエスト
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MenuByDurationRequest {
+    pub user_id: String,
+    pub duration_minutes: u32,
+}
+
+/// AI情報レスポンス（管理画面用）
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AIInfoResponse {
+    pub model_name: String,
+    pub provider: String,
+    pub model_id: String,
+}

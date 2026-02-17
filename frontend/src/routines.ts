@@ -1,5 +1,5 @@
 
-import type { Exercise, Routine } from './types';
+import type { Exercise, Routine, TimedMenu } from './types';
 
 export const EXERCISES: Record<string, Exercise> = {
     // Push
@@ -53,3 +53,105 @@ export const ROUTINES: Routine[] = [
         ]
     }
 ];
+
+// === AI未生成時のフォールバックメニュー ===
+
+export const DEFAULT_TIMED_MENUS: TimedMenu[] = [
+    // Push 15分
+    {
+        bodyPart: 'push', durationMinutes: 15, generatedAt: '',
+        totalRestSeconds: 120,
+        exercises: [
+            { exerciseName: 'インクライン・プレス', sets: 3, reps: 12, recommendedWeight: 20, restSeconds: 30, notes: '肩甲骨を寄せる' },
+            { exerciseName: 'ショルダー・プレス', sets: 2, reps: 12, recommendedWeight: 14, restSeconds: 30, notes: '耳の横まで下ろす' },
+        ]
+    },
+    // Push 30分
+    {
+        bodyPart: 'push', durationMinutes: 30, generatedAt: '',
+        totalRestSeconds: 360,
+        exercises: [
+            { exerciseName: 'インクライン・プレス', sets: 3, reps: 10, recommendedWeight: 22, restSeconds: 60, notes: '肩甲骨を寄せて固定' },
+            { exerciseName: 'ショルダー・プレス', sets: 3, reps: 10, recommendedWeight: 16, restSeconds: 60, notes: '耳の横まで下ろす' },
+            { exerciseName: 'サイド・レイズ', sets: 3, reps: 15, recommendedWeight: 8, restSeconds: 45, notes: '反動を使わない' },
+        ]
+    },
+    // Push 60分
+    {
+        bodyPart: 'push', durationMinutes: 60, generatedAt: '',
+        totalRestSeconds: 810,
+        exercises: [
+            { exerciseName: 'インクライン・プレス', sets: 4, reps: 8, recommendedWeight: 24, restSeconds: 120, notes: '肩甲骨を寄せて固定' },
+            { exerciseName: 'ショルダー・プレス', sets: 3, reps: 10, recommendedWeight: 16, restSeconds: 90, notes: '耳の横まで下ろす' },
+            { exerciseName: 'トライセプス・エクステンション', sets: 3, reps: 12, recommendedWeight: 12, restSeconds: 60, notes: '肘を固定' },
+            { exerciseName: 'サイド・レイズ', sets: 3, reps: 15, recommendedWeight: 8, restSeconds: 45, notes: '反動を使わない' },
+        ]
+    },
+    // Pull 15分
+    {
+        bodyPart: 'pull', durationMinutes: 15, generatedAt: '',
+        totalRestSeconds: 120,
+        exercises: [
+            { exerciseName: 'ワンアーム・ロウ', sets: 3, reps: 12, recommendedWeight: 18, restSeconds: 30, notes: '広背筋を意識' },
+            { exerciseName: 'ハンマー・カール', sets: 2, reps: 12, recommendedWeight: 10, restSeconds: 30, notes: '前腕を固定' },
+        ]
+    },
+    // Pull 30分
+    {
+        bodyPart: 'pull', durationMinutes: 30, generatedAt: '',
+        totalRestSeconds: 360,
+        exercises: [
+            { exerciseName: 'ワンアーム・ロウ', sets: 3, reps: 10, recommendedWeight: 20, restSeconds: 60, notes: '広背筋を意識' },
+            { exerciseName: 'デッドリフト', sets: 3, reps: 8, recommendedWeight: 30, restSeconds: 90, notes: '背筋を伸ばす' },
+            { exerciseName: 'ハンマー・カール', sets: 3, reps: 12, recommendedWeight: 12, restSeconds: 45, notes: '前腕を固定' },
+        ]
+    },
+    // Pull 60分
+    {
+        bodyPart: 'pull', durationMinutes: 60, generatedAt: '',
+        totalRestSeconds: 810,
+        exercises: [
+            { exerciseName: 'ワンアーム・ロウ', sets: 4, reps: 8, recommendedWeight: 22, restSeconds: 120, notes: '広背筋を意識' },
+            { exerciseName: 'デッドリフト', sets: 4, reps: 6, recommendedWeight: 32, restSeconds: 120, notes: '背筋を伸ばす' },
+            { exerciseName: 'ハンマー・カール', sets: 3, reps: 10, recommendedWeight: 12, restSeconds: 60, notes: 'ゆっくり下ろす' },
+            { exerciseName: 'フェイス・プル', sets: 3, reps: 15, recommendedWeight: 10, restSeconds: 45, notes: '肩甲骨の寄せ' },
+        ]
+    },
+    // Legs 15分
+    {
+        bodyPart: 'legs', durationMinutes: 15, generatedAt: '',
+        totalRestSeconds: 120,
+        exercises: [
+            { exerciseName: 'ゴブレット・スクワット', sets: 3, reps: 12, recommendedWeight: 20, restSeconds: 30, notes: '深くしゃがむ' },
+            { exerciseName: 'カーフレイズ', sets: 2, reps: 20, recommendedWeight: 16, restSeconds: 30, notes: 'つま立ちで静止' },
+        ]
+    },
+    // Legs 30分
+    {
+        bodyPart: 'legs', durationMinutes: 30, generatedAt: '',
+        totalRestSeconds: 360,
+        exercises: [
+            { exerciseName: 'ゴブレット・スクワット', sets: 4, reps: 10, recommendedWeight: 24, restSeconds: 60, notes: '腹圧をかける' },
+            { exerciseName: 'ランジ', sets: 3, reps: 10, recommendedWeight: 16, restSeconds: 60, notes: '前足重心' },
+            { exerciseName: 'カーフレイズ', sets: 3, reps: 20, recommendedWeight: 18, restSeconds: 45, notes: '最大ストレッチ' },
+        ]
+    },
+    // Legs 60分
+    {
+        bodyPart: 'legs', durationMinutes: 60, generatedAt: '',
+        totalRestSeconds: 810,
+        exercises: [
+            { exerciseName: 'ゴブレット・スクワット', sets: 4, reps: 8, recommendedWeight: 26, restSeconds: 120, notes: '腹圧をかける' },
+            { exerciseName: 'ランジ', sets: 4, reps: 10, recommendedWeight: 18, restSeconds: 90, notes: '前足重心' },
+            { exerciseName: 'カーフレイズ', sets: 3, reps: 20, recommendedWeight: 20, restSeconds: 60, notes: '最大ストレッチ' },
+            { exerciseName: 'アップライト・ロウ', sets: 3, reps: 12, recommendedWeight: 14, restSeconds: 60, notes: '肘を高く上げる' },
+        ]
+    },
+];
+
+/** 部位名のラベル */
+export const BODY_PART_LABELS: Record<string, string> = {
+    push: 'Push (胸・肩・三頭)',
+    pull: 'Pull (背中・二頭)',
+    legs: 'Legs (脚・肩)',
+};
