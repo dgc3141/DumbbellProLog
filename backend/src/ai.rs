@@ -316,3 +316,36 @@ pub async fn generate_timed_menus(
 
     Ok(menus)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::TimedMenu;
+
+    #[test]
+    fn test_parse_gemini_response() {
+        let sample_json = r#"[
+            {
+                "bodyPart": "push",
+                "durationMinutes": 15,
+                "exercises": [
+                    {
+                        "exerciseName": "Push Up",
+                        "sets": 3,
+                        "reps": 10,
+                        "recommendedWeight": 0.0,
+                        "restSeconds": 60,
+                        "notes": "Keep straight"
+                    }
+                ],
+                "totalRestSeconds": 180,
+                "generatedAt": "2023-01-01T12:00:00Z"
+            }
+        ]"#;
+
+        let menus: Vec<TimedMenu> = serde_json::from_str(sample_json).expect("Failed to parse JSON");
+        assert_eq!(menus.len(), 1);
+        assert_eq!(menus[0].body_part, "push");
+        assert_eq!(menus[0].exercises[0].exercise_name, "Push Up");
+    }
+}

@@ -72,3 +72,47 @@ pub struct AIInfoResponse {
     pub provider: String,
     pub model_id: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_workout_set_keys() {
+        let set = WorkoutSet {
+            user_id: "test_user".to_string(),
+            timestamp: "2023-01-01T12:00:00Z".to_string(),
+            exercise_id: "push_1".to_string(),
+            weight: 20.0,
+            reps: 10,
+            rpe: RpeLevel::Just,
+        };
+
+        assert_eq!(set.pk(), "USER#test_user");
+        assert_eq!(set.sk(), "WORKOUT#2023-01-01T12:00:00Z");
+    }
+
+    #[test]
+    fn test_timed_menu_serialization() {
+        let menu = TimedMenu {
+            body_part: "push".to_string(),
+            duration_minutes: 15,
+            exercises: vec![
+                MenuExercise {
+                    exercise_name: "Push Up".to_string(),
+                    sets: 3,
+                    reps: 10,
+                    recommended_weight: 0.0,
+                    rest_seconds: 60,
+                    notes: "Keep straight".to_string(),
+                }
+            ],
+            total_rest_seconds: 180,
+            generated_at: "2023-01-01T12:00:00Z".to_string(),
+        };
+
+        let json = serde_json::to_string(&menu).unwrap();
+        assert!(json.contains("\"bodyPart\":\"push\"")); // camelCase check
+        assert!(json.contains("\"durationMinutes\":15"));
+    }
+}
