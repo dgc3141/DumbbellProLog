@@ -34,7 +34,6 @@ DumbbellProLog/
 ├── backend/            # Rust (API Layer)
 ├── infra/              # AWS CDK (Infrastructure)
 ├── shared/             # (将来的な共有リソース用)
-├── Project Blueprint.md # 本プロジェクトの設計思想と要件
 └── build_and_deploy.sh  # 一括ビルド・デプロイスクリプト
 ```
 
@@ -65,4 +64,4 @@ npx cdk deploy
 Pixel 9 を含む現代のスマートフォンに最適化されています。
 
 ## 📄 ライセンス
-This project is for personal use under the Project Blueprint specifications.
+This project is for personal use.
