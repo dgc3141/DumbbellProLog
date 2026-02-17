@@ -90,4 +90,4 @@ jobs:
         env:
           # Pass necessary environment variables to CDK if needed
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
-          GEMINI_MODEL_ID: ${{ vars.GEMINI_MODEL_ID || 'gemini-1.5-flash' }}
+          GEMINI_MODEL_ID: ${{ vars.GEMINI_MODEL_ID || 'gemini-3-flash-preview' }}
