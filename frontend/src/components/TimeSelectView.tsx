@@ -5,7 +5,7 @@ import { DEFAULT_TIMED_MENUS, BODY_PART_LABELS } from '../routines';
 
 interface TimeSelectViewProps {
     theme: 'light' | 'dark';
-    session: Record<string, unknown> | null;
+    session: import('../types').CognitoSession | null;
     apiBase: string;
     onStartMenu: (menu: TimedMenu) => void;
 }
@@ -33,15 +33,14 @@ export function TimeSelectView({ theme, session, apiBase, onStartMenu }: TimeSel
 
             setIsLoading(true);
             try {
-                const sessionObj = session as Record<string, () => Record<string, () => string>>;
                 const response = await fetch(`${apiBase}/menus/by-duration`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${sessionObj.getIdToken().getJwtToken()}`,
+                        'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`,
                     },
                     body: JSON.stringify({
-                        userId: (session as Record<string, () => string>).getUsername(),
+                        userId: session.getUsername(),
                         durationMinutes: selectedDuration,
                     }),
                 });

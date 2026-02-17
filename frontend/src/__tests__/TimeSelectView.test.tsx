@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TimeSelectView } from '../components/TimeSelectView';
-import type { TimedMenu } from '../types';
+import type { TimedMenu, CognitoSession } from '../types';
 
 // Mock Lucide icons to avoid rendering issues in test environment
 vi.mock('lucide-react', () => ({
@@ -17,8 +17,7 @@ vi.mock('lucide-react', () => ({
 describe('TimeSelectView', () => {
     const mockOnStartMenu = vi.fn();
     const mockApiBase = 'http://localhost:3000';
-    const mockSession = {
-        username: 'testuser',
+    const mockSession: CognitoSession = {
         getIdToken: () => ({ getJwtToken: () => 'mock-token' }),
         getUsername: () => 'testuser',
     };
@@ -27,7 +26,7 @@ describe('TimeSelectView', () => {
         render(
             <TimeSelectView
                 theme="light"
-                session={mockSession as any}
+                session={mockSession}
                 apiBase={mockApiBase}
                 onStartMenu={mockOnStartMenu}
             />
@@ -64,7 +63,7 @@ describe('TimeSelectView', () => {
         render(
             <TimeSelectView
                 theme="light"
-                session={mockSession as any}
+                session={mockSession}
                 apiBase={mockApiBase}
                 onStartMenu={mockOnStartMenu}
             />

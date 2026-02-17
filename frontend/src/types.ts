@@ -77,3 +77,11 @@ export interface GenerateMenusResponse {
 }
 
 export type DurationOption = 15 | 30 | 60;
+
+// Cognito Session Interface for better type safety in components/tests
+export interface CognitoSession {
+    getIdToken: () => {
+        getJwtToken: () => string;
+    };
+    getUsername: () => string;
+}
