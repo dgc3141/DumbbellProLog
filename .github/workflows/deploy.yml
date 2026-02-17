@@ -1,0 +1,93 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1 # Default region, adjust if needed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # 1. Build Backend (Rust -> Lambda bootstrap)
+      # ------------------------------------------------------------------
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            backend/target/
+          key: ${{ runner.os }}-cargo-deploy-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build Backend (musl)
+        run: |
+          cd backend
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          cargo build --release --target x86_64-unknown-linux-musl
+          mkdir -p dist
+          # Copy and rename to 'bootstrap' for Lambda provided.al2023 runtime
+          cp target/x86_64-unknown-linux-musl/release/backend dist/bootstrap
+          echo "Backend build complete."
+          ls -l dist/bootstrap
+
+      # ------------------------------------------------------------------
+      # 2. Build Frontend (React -> static files)
+      # ------------------------------------------------------------------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install and Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          echo "Frontend build complete."
+          ls -l dist
+
+      # ------------------------------------------------------------------
+      # 3. Deploy Infrastructure (CDK)
+      # ------------------------------------------------------------------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK dependencies
+        run: |
+          cd infra
+          npm ci
+
+      - name: CDK Deploy
+        run: |
+          cd infra
+          # Extract the latest backend and frontend verified artifacts
+          npx cdk deploy --all --require-approval never
+        env:
+          # Pass necessary environment variables to CDK if needed
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
+          GEMINI_MODEL_ID: ${{ vars.GEMINI_MODEL_ID || 'gemini-1.5-flash' }}
