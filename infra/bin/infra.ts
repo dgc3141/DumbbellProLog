@@ -1,4 +1,9 @@
-#!/usr/bin/env node
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// .env ファイルをロード
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 import * as cdk from 'aws-cdk-lib';
 import { InfraStack } from '../lib/infra-stack';
 

@@ -107,32 +107,35 @@ export class InfraStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: {
         TABLE_NAME: table.tableName,
-        BEDROCK_MODEL_ID: 'deepseek.v3.2',
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || 'REPLACE_WITH_YOUR_API_KEY',
+        GEMINI_MODEL_ID: process.env.GEMINI_MODEL_ID || 'gemini-3.0-flash',
       },
       architecture: lambda.Architecture.X86_64, // Compatible with host build environment
       memorySize: 256, // Increased for AI processing
-      timeout: cdk.Duration.seconds(30), // Increased for Bedrock calls
+      timeout: cdk.Duration.seconds(30), // Increased for Gemini API calls
     });
 
     table.grantReadWriteData(backendFunction);
 
-    // Bedrock InvokeModel permission
-    backendFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
-      effect: cdk.aws_iam.Effect.ALLOW,
-      actions: ['bedrock:InvokeModel', 'bedrock:Converse'],
-      resources: ['*'], // DeepSeek model ARN
-    }));
+    // Note: Gemini API uses API key auth, no IAM policy needed for external API
 
     const api = new apigw.HttpApi(this, 'DumbbellProLogApi', {
       corsPreflight: {
         allowOrigins: ['*'],
         allowMethods: [apigw.CorsHttpMethod.ANY],
+        allowHeaders: ['Content-Type', 'Authorization'],
       },
     });
 
     api.addRoutes({
       path: '/{proxy+}',
-      methods: [apigw.HttpMethod.ANY],
+      // OPTIONS を含めると CORS preflight が authorizer で弾かれるため、それ以外を指定
+      methods: [
+        apigw.HttpMethod.GET,
+        apigw.HttpMethod.POST,
+        apigw.HttpMethod.PUT,
+        apigw.HttpMethod.DELETE,
+      ],
       integration: new integrations.HttpLambdaIntegration('BackendIntegration', backendFunction),
       authorizer: authAuthorizer,
     });

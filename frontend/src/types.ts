@@ -45,3 +45,35 @@ export interface AIAnalysisResponse {
     plateau_warnings: string[];
     encouragement: string;
 }
+
+// === 時間ベースメニュー関連の型 ===
+
+export interface MenuExercise {
+    exerciseName: string;
+    sets: number;
+    reps: number;
+    recommendedWeight: number;
+    restSeconds: number;
+    notes: string;
+}
+
+export interface TimedMenu {
+    bodyPart: string;          // "push" | "pull" | "legs"
+    durationMinutes: number;   // 15 | 30 | 60
+    exercises: MenuExercise[];
+    totalRestSeconds: number;
+    generatedAt: string;
+}
+
+export interface AIInfoResponse {
+    modelName: string;
+    provider: string;
+    modelId: string;
+}
+
+export interface GenerateMenusResponse {
+    menus: TimedMenu[];
+    generatedCount: number;
+}
+
+export type DurationOption = 15 | 30 | 60;

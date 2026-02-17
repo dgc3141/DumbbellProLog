@@ -1,29 +1,30 @@
 import { useState, useEffect } from 'react';
-import type { RpeLevel, WorkoutSet, AIRecommendation } from './types';
+import type { RpeLevel, WorkoutSet, AIRecommendation, TimedMenu, MenuExercise } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
 import StatsDashboard from './components/StatsDashboard';
-import RoutineDetail from './components/RoutineDetail';
 import LoginView from './components/LoginView';
 import SettingsView from './components/SettingsView';
 import AIRecommendView from './components/AIRecommendView';
-import { ROUTINES } from './routines';
+import { TimeSelectView } from './components/TimeSelectView';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { COGNITO_CONFIG } from './auth-config';
-import { LayoutGrid, BarChart2, CheckCircle2, ChevronRight, Moon, Sun, Settings, LogOut } from 'lucide-react';
+import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut } from 'lucide-react';
+
+const API_BASE = 'https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com';
 
 export default function App() {
   // Global State
   const [history, setHistory] = useState<WorkoutSet[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [view, setView] = useState<'routine_select' | 'routine_detail' | 'training' | 'stats' | 'settings'>('routine_select');
+  const [view, setView] = useState<'time_select' | 'training' | 'stats' | 'settings'>('time_select');
 
-  // Session State
-  const [selectedRoutineIndex, setSelectedRoutineIndex] = useState(0);
+  // Session State - Time-based menu
+  const [activeMenu, setActiveMenu] = useState<TimedMenu | null>(null);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
   const [isResting, setIsResting] = useState(false);
-  const [weight, setWeight] = useState(24);
+  const [weight, setWeight] = useState(20);
   const [isSessionComplete, setIsSessionComplete] = useState(false);
   const [selectedRepsMap, setSelectedRepsMap] = useState<Record<string, number>>({});
   const [totalVolume, setTotalVolume] = useState(0);
@@ -49,16 +50,15 @@ export default function App() {
     }
   };
 
-  const activeRoutine = ROUTINES[selectedRoutineIndex];
-  const currentRoutineEntry = activeRoutine.exercises[currentExerciseIndex];
-  const currentExercise = currentRoutineEntry?.exercise;
-  const totalSetsForCurrent = currentRoutineEntry?.targetSets || 3;
+  // アクティブメニューの現在のエクササイズ
+  const currentMenuExercise: MenuExercise | undefined = activeMenu?.exercises[currentExerciseIndex];
+  const totalSetsForCurrent = currentMenuExercise?.sets || 3;
+  const currentRestDuration = currentMenuExercise?.restSeconds || 90;
 
   // Persistence & Initialization
   useEffect(() => {
     const saved = localStorage.getItem('workout_state_v3');
     const savedTheme = localStorage.getItem('app_theme');
-    const lastRoutineId = localStorage.getItem('last_routine_id');
 
     if (saved) {
       try {
@@ -67,10 +67,6 @@ export default function App() {
       } catch (e) { console.error(e); }
     }
     if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
-    if (lastRoutineId) {
-      const idx = ROUTINES.findIndex(r => r.id === lastRoutineId);
-      if (idx !== -1) setSelectedRoutineIndex(idx);
-    }
 
     // Check Cognito Session
     const userPool = new CognitoUserPool({
@@ -98,10 +94,11 @@ export default function App() {
     localStorage.setItem('app_theme', theme);
   }, [theme]);
 
-  // トレーニング完了時にAI推奨を自動取得
+  // トレーニング完了時にAI推奨を自動取得 & メニュー再生成トリガー
   useEffect(() => {
     if (isSessionComplete && session) {
       fetchAIRecommendation();
+      triggerMenuGeneration();
     }
   }, [isSessionComplete]);
 
@@ -114,11 +111,11 @@ export default function App() {
     setShowAiModal(true);
 
     try {
-      const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/ai/recommend', {
+      const response = await fetch(`${API_BASE}/ai/recommend`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': session.getIdToken().getJwtToken()
+          'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
         },
         body: JSON.stringify({ user_id: session.getUsername() })
       });
@@ -138,42 +135,54 @@ export default function App() {
     }
   };
 
-  // Handle Routine Select
-  const peekRoutine = (index: number) => {
-    setSelectedRoutineIndex(index);
-    setView('routine_detail');
+  // セッション完了時にバックグラウンドでメニュー再生成
+  const triggerMenuGeneration = async () => {
+    if (!session) return;
+
+    try {
+      await fetch(`${API_BASE}/ai/generate-menus`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
+        },
+        body: JSON.stringify({ user_id: session.getUsername() })
+      });
+      console.log('Menu generation triggered successfully');
+    } catch (e) {
+      console.warn('Menu generation trigger failed (non-critical):', e);
+    }
   };
 
-  // Handle Routine Start
-  const startRoutine = (index: number) => {
-    setSelectedRoutineIndex(index);
+  // Handle Menu Start (from TimeSelectView)
+  const startMenu = (menu: TimedMenu) => {
+    setActiveMenu(menu);
     setCurrentExerciseIndex(0);
     setCurrentSet(1);
     setIsResting(false);
     setIsSessionComplete(false);
     setTotalVolume(0);
-    setWeight(ROUTINES[index].exercises[0].defaultWeight);
+    setWeight(menu.exercises[0]?.recommendedWeight || 20);
     setView('training');
-    localStorage.setItem('last_routine_id', ROUTINES[index].id);
   };
 
   const handleLog = async (reps: number, rpe: RpeLevel) => {
-    if (!currentExercise || isLoading) return;
+    if (!currentMenuExercise || isLoading) return;
 
     setIsLoading(true);
-    vibrate(50); // Short haptic feedback for tap
+    vibrate(50);
 
     const newSet: WorkoutSet = {
       user_id: session.getUsername(),
       timestamp: new Date().toISOString(),
-      exercise_id: currentExercise.id,
+      exercise_id: currentMenuExercise.exerciseName,
       weight,
       reps,
       rpe
     };
 
     try {
-      const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/log', {
+      const response = await fetch(`${API_BASE}/log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -187,12 +196,11 @@ export default function App() {
       setHistory(prev => [...prev, newSet]);
       setTotalVolume(v => v + weight * reps);
       setIsResting(true);
-      vibrate([50, 30, 50]); // Multi-tap haptic success
+      vibrate([50, 30, 50]);
       showToast('Log Saved Successfully');
     } catch (e) {
       console.warn(e);
       showToast('Sync Failed - Saved Locally', 'error');
-      // Still allow continuation offline
       setHistory(prev => [...prev, newSet]);
       setTotalVolume(v => v + weight * reps);
       setIsResting(true);
@@ -202,15 +210,16 @@ export default function App() {
   };
 
   const finishRest = () => {
+    if (!activeMenu) return;
     setIsResting(false);
     if (currentSet < totalSetsForCurrent) {
       setCurrentSet(s => s + 1);
     } else {
-      if (currentExerciseIndex < activeRoutine.exercises.length - 1) {
+      if (currentExerciseIndex < activeMenu.exercises.length - 1) {
         const nextIdx = currentExerciseIndex + 1;
         setCurrentExerciseIndex(nextIdx);
         setCurrentSet(1);
-        setWeight(activeRoutine.exercises[nextIdx].defaultWeight);
+        setWeight(activeMenu.exercises[nextIdx].recommendedWeight);
       } else {
         setIsSessionComplete(true);
       }
@@ -218,14 +227,14 @@ export default function App() {
   };
 
   const lastSet = history
-    .filter(h => h.exercise_id === currentExercise?.id)
+    .filter(h => h.exercise_id === currentMenuExercise?.exerciseName)
     .slice(-1)[0];
 
-  const totalSetsInRoutine = activeRoutine.exercises.reduce((acc, ex) => acc + ex.targetSets, 0);
-  const setsCompletedPreviousExercises = activeRoutine.exercises
+  const totalSetsInMenu = activeMenu?.exercises.reduce((acc, ex) => acc + ex.sets, 0) || 0;
+  const setsCompletedPreviousExercises = activeMenu?.exercises
     .slice(0, currentExerciseIndex)
-    .reduce((acc, ex) => acc + ex.targetSets, 0);
-  const progress = isSessionComplete ? 100 : ((setsCompletedPreviousExercises + (currentSet - 1)) / totalSetsInRoutine) * 100;
+    .reduce((acc, ex) => acc + ex.sets, 0) || 0;
+  const progress = isSessionComplete ? 100 : totalSetsInMenu > 0 ? ((setsCompletedPreviousExercises + (currentSet - 1)) / totalSetsInMenu) * 100 : 0;
 
   // --- RENDERING ---
 
@@ -274,9 +283,9 @@ export default function App() {
       {/* Bottom Nav */}
       {!hideNav && (
         <nav className={`fixed bottom-0 left-0 right-0 p-4 border-t glass-card flex justify-around items-center z-50 rounded-t-3xl ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
-          <button onClick={() => setView('routine_select')} className={`flex flex-col items-center gap-1 ${view === 'routine_select' || view === 'routine_detail' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <button onClick={() => setView('time_select')} className={`flex flex-col items-center gap-1 ${view === 'time_select' ? 'text-blue-500' : 'text-slate-500'}`}>
             <LayoutGrid size={20} />
-            <span className="text-[10px] font-black uppercase">Routines</span>
+            <span className="text-[10px] font-black uppercase">Menu</span>
           </button>
           <button onClick={() => setView('training')} className={`flex flex-col items-center gap-1 ${view === 'training' ? 'text-blue-500' : 'text-slate-500'}`}>
             <CheckCircle2 size={20} />
@@ -318,38 +327,17 @@ export default function App() {
     );
   }
 
-  if (view === 'routine_select') {
+  if (view === 'time_select') {
     return (
       <Layout>
-        <header className="flex justify-between items-center mb-10 pt-4">
-          <h1 className="text-3xl font-black italic text-blue-500">ROUTINES</h1>
-        </header>
-        <div className="space-y-4">
-          {ROUTINES.map((r, i) => (
-            <button key={r.id} onClick={() => peekRoutine(i)} className="w-full glass-card p-6 rounded-3xl border border-slate-700/50 flex justify-between items-center active:scale-[0.98] transition-all text-left">
-              <div>
-                <p className="text-[10px] font-black uppercase text-blue-500 mb-1">{r.exercises.length} Exercises</p>
-                <h2 className="text-xl font-black italic">{r.name}</h2>
-              </div>
-              <ChevronRight className="text-slate-500" />
-            </button>
-          ))}
-        </div>
-      </Layout>
-    );
-  }
-
-  if (view === 'routine_detail') {
-    return (
-      <Layout hideNav>
-        <RoutineDetail
-          routine={activeRoutine}
+        <TimeSelectView
           theme={theme}
-          onBack={() => setView('routine_select')}
-          onStart={() => startRoutine(selectedRoutineIndex)}
+          session={session}
+          apiBase={API_BASE}
+          onStartMenu={startMenu}
         />
       </Layout>
-    )
+    );
   }
 
   if (view === 'stats') {
@@ -376,8 +364,30 @@ export default function App() {
         <SettingsView
           theme={theme}
           session={session}
-          onBack={() => setView('routine_select')}
+          apiBase={API_BASE}
+          onBack={() => setView('time_select')}
         />
+      </Layout>
+    );
+  }
+
+  // === Training View ===
+
+  if (!activeMenu) {
+    return (
+      <Layout>
+        <div className="min-h-[80vh] flex flex-col items-center justify-center">
+          <div className="glass-card p-8 rounded-[3rem] text-center w-full border border-slate-700/50">
+            <h1 className="text-2xl font-black italic text-blue-500 mb-4">NO ACTIVE SESSION</h1>
+            <p className="text-slate-400 mb-8">メニューを選択してトレーニングを開始しましょう</p>
+            <button
+              onClick={() => setView('time_select')}
+              className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+            >
+              Select Menu
+            </button>
+          </div>
+        </div>
       </Layout>
     );
   }
@@ -391,7 +401,7 @@ export default function App() {
             <p className="text-slate-400 font-bold uppercase tracking-widest mb-10">Amazing Session</p>
             <div className="text-6xl font-black mb-1">{totalVolume.toLocaleString()}</div>
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-12">Total Volume (KG)</div>
-            <button onClick={() => setView('routine_select')} className="w-full bg-blue-600 dark:bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+            <button onClick={() => { setActiveMenu(null); setView('time_select'); }} className="w-full bg-blue-600 dark:bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
               Return Home
             </button>
           </div>
@@ -409,7 +419,9 @@ export default function App() {
 
       <header className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-xl font-black italic text-blue-500 uppercase">{activeRoutine.name}</h1>
+          <h1 className="text-xl font-black italic text-blue-500 uppercase">
+            {activeMenu.bodyPart.toUpperCase()} · {activeMenu.durationMinutes}MIN
+          </h1>
           <p className="text-[10px] font-bold text-slate-500">{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</p>
         </div>
         <div className="text-right">
@@ -421,10 +433,10 @@ export default function App() {
       {/* Exercise Card */}
       <div className="glass-card rounded-[2.5rem] p-7 border border-slate-700/50 shadow-2xl relative mb-6">
         <div className="flex justify-between items-start mb-2">
-          <h2 className="text-xl font-black leading-tight">{currentExercise?.name}</h2>
-          <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{activeRoutine.exercises.length}</span>
+          <h2 className="text-xl font-black leading-tight">{currentMenuExercise?.exerciseName}</h2>
+          <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{activeMenu.exercises.length}</span>
         </div>
-        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest italic mb-6">{currentExercise?.notes}</p>
+        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest italic mb-6">{currentMenuExercise?.notes}</p>
 
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -446,18 +458,23 @@ export default function App() {
             Last: <span className="text-slate-400">{lastSet ? `${lastSet.weight}kg x ${lastSet.reps}` : '-'}</span>
           </div>
         </div>
+
+        {/* レスト時間表示 */}
+        <div className={`mt-3 text-center text-[10px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`}>
+          Rest: {currentRestDuration}s (AI最適化)
+        </div>
       </div>
 
       {/* Action Area */}
       <div className="min-h-[260px]">
         {isResting ? (
-          <RestTimer theme={theme} onSkip={finishRest} onFinish={finishRest} />
+          <RestTimer theme={theme} duration={currentRestDuration} onSkip={finishRest} onFinish={finishRest} />
         ) : (
           <LoggingFlow
             theme={theme}
-            reps={selectedRepsMap[currentExercise?.id || ''] || 10}
+            reps={selectedRepsMap[currentMenuExercise?.exerciseName || ''] || (currentMenuExercise?.reps || 10)}
             isLoading={isLoading}
-            onRepsChange={(reps) => setSelectedRepsMap(prev => ({ ...prev, [currentExercise?.id || '']: reps }))}
+            onRepsChange={(reps) => setSelectedRepsMap(prev => ({ ...prev, [currentMenuExercise?.exerciseName || '']: reps }))}
             onLog={handleLog}
           />
         )}

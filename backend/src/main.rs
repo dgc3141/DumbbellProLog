@@ -8,21 +8,26 @@ use axum::{
     Router,
 };
 use aws_sdk_dynamodb::{Client as DynamoClient, types::AttributeValue};
-use aws_sdk_bedrockruntime::Client as BedrockClient;
 use lambda_http::{run, tracing, Error};
+use reqwest::Client as HttpClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
-use types::WorkoutSet;
-use ai::{AIRecommendRequest, AIRecommendResponse, AIAnalysisResponse, get_training_recommendation, get_growth_analysis};
+use types::{WorkoutSet, AIInfoResponse, MenuByDurationRequest, TimedMenu};
+use ai::{
+    AIRecommendRequest, AIRecommendResponse, AIAnalysisResponse,
+    GenerateMenusRequest, GenerateMenusResponse,
+    get_training_recommendation, get_growth_analysis, generate_timed_menus,
+};
 use chrono::{Utc, Duration};
 
 #[derive(Clone)]
 struct AppState {
     db_client: DynamoClient,
-    bedrock_client: BedrockClient,
+    http_client: HttpClient,
     table_name: String,
-    bedrock_model_id: String,
+    gemini_model_id: String,
+    gemini_api_key: String,
 }
 
 #[tokio::main]
@@ -31,20 +36,20 @@ async fn main() -> Result<(), Error> {
 
     let config = aws_config::load_from_env().await;
     let db_client = DynamoClient::new(&config);
-    
-    // DeepSeek V3.2 は us-east-1 で提供されているためリージョンを固定
-    let bedrock_config = aws_config::from_env().region("us-east-1").load().await;
-    let bedrock_client = BedrockClient::new(&bedrock_config);
+    let http_client = HttpClient::new();
 
     let table_name = std::env::var("TABLE_NAME").unwrap_or_else(|_| "DumbbellProLog".to_string());
-    let bedrock_model_id = std::env::var("BEDROCK_MODEL_ID")
-        .unwrap_or_else(|_| "deepseek.v3.2".to_string());
+    let gemini_model_id = std::env::var("GEMINI_MODEL_ID")
+        .unwrap_or_else(|_| "gemini-3.0-flash".to_string());
+    let gemini_api_key = std::env::var("GEMINI_API_KEY")
+        .unwrap_or_else(|_| String::new());
 
     let state = Arc::new(AppState {
         db_client,
-        bedrock_client,
+        http_client,
         table_name,
-        bedrock_model_id,
+        gemini_model_id,
+        gemini_api_key,
     });
 
     let app = Router::new()
@@ -52,6 +57,9 @@ async fn main() -> Result<(), Error> {
         .route("/log", post(log_workout))
         .route("/ai/recommend", post(get_ai_recommendation))
         .route("/ai/analyze-growth", post(analyze_growth))
+        .route("/ai/generate-menus", post(trigger_menu_generation))
+        .route("/ai/info", get(get_ai_info))
+        .route("/menus/by-duration", post(get_menus_by_duration))
         .route("/stats/history", post(get_full_history))
         .layer(CorsLayer::permissive())
         .with_state(state);
@@ -134,10 +142,11 @@ async fn get_ai_recommendation(
 
     println!("Found {} workout records for user {}", workout_history.len(), request.user_id);
 
-    // Bedrock AIを呼び出して推奨を取得
+    // Gemini AIを呼び出して推奨を取得
     let recommendation = get_training_recommendation(
-        &state.bedrock_client,
-        &state.bedrock_model_id,
+        &state.http_client,
+        &state.gemini_api_key,
+        &state.gemini_model_id,
         &workout_history,
     )
     .await
@@ -175,10 +184,11 @@ async fn analyze_growth(
         .filter_map(|item| serde_dynamo::from_item(item.clone()).ok())
         .collect();
 
-    // Bedrock AIを呼び出して長期分析を取得
+    // Gemini AIを呼び出して長期分析を取得
     let analysis = get_growth_analysis(
-        &state.bedrock_client,
-        &state.bedrock_model_id,
+        &state.http_client,
+        &state.gemini_api_key,
+        &state.gemini_model_id,
         &workout_history,
     )
     .await
@@ -187,6 +197,126 @@ async fn analyze_growth(
     })?;
 
     Ok(Json(analysis))
+}
+
+/// AI情報エンドポイント - 管理画面から使用AIモデルを確認する
+async fn get_ai_info(
+    State(state): State<Arc<AppState>>,
+) -> Json<AIInfoResponse> {
+    Json(AIInfoResponse {
+        model_name: "Gemini 3 Flash".to_string(),
+        provider: "Google AI Studio".to_string(),
+        model_id: state.gemini_model_id.clone(),
+    })
+}
+
+/// メニュー生成トリガー - セッション完了時にバックグラウンドで呼び出し
+async fn trigger_menu_generation(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<GenerateMenusRequest>,
+) -> Result<Json<GenerateMenusResponse>, (axum::http::StatusCode, String)> {
+    // ユーザーの最新履歴を取得
+    let pk = format!("USER#{}", request.user_id);
+    let sk_prefix = "WORKOUT#";
+
+    let query_result = state.db_client
+        .query()
+        .table_name(&state.table_name)
+        .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
+        .expression_attribute_values(":pk", AttributeValue::S(pk.clone()))
+        .expression_attribute_values(":sk_prefix", AttributeValue::S(sk_prefix.to_string()))
+        .scan_index_forward(false) // 新しい順
+        .limit(50)
+        .send()
+        .await
+        .map_err(|e| {
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+        })?;
+
+    let workout_history: Vec<WorkoutSet> = query_result
+        .items()
+        .iter()
+        .filter_map(|item| serde_dynamo::from_item(item.clone()).ok())
+        .collect();
+
+    // Geminiでメニューを生成
+    let menus = generate_timed_menus(
+        &state.http_client,
+        &state.gemini_api_key,
+        &state.gemini_model_id,
+        &workout_history,
+    )
+    .await
+    .map_err(|e| {
+        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Menu generation failed: {}", e))
+    })?;
+
+    // 生成したメニューをDynamoDBに保存
+    for menu in &menus {
+        let menu_item = serde_dynamo::to_item(menu).map_err(|e| {
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Menu serialization failed: {}", e))
+        })?;
+
+        let mut item: std::collections::HashMap<String, AttributeValue> = menu_item;
+        item.insert("PK".to_string(), AttributeValue::S(pk.clone()));
+        item.insert("SK".to_string(), AttributeValue::S(
+            format!("MENU#{}#{}min", menu.body_part, menu.duration_minutes)
+        ));
+
+        state.db_client
+            .put_item()
+            .table_name(&state.table_name)
+            .set_item(Some(item))
+            .send()
+            .await
+            .map_err(|e| {
+                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB put failed: {}", e))
+            })?;
+    }
+
+    let count = menus.len();
+    Ok(Json(GenerateMenusResponse {
+        menus,
+        generated_count: count,
+    }))
+}
+
+/// 時間指定でメニューを取得
+async fn get_menus_by_duration(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<MenuByDurationRequest>,
+) -> Result<Json<Vec<TimedMenu>>, (axum::http::StatusCode, String)> {
+    let pk = format!("USER#{}", request.user_id);
+    let sk_suffix = format!("{}min", request.duration_minutes);
+
+    // 指定時間のメニューを全部位から取得
+    let query_result = state.db_client
+        .query()
+        .table_name(&state.table_name)
+        .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
+        .expression_attribute_values(":pk", AttributeValue::S(pk))
+        .expression_attribute_values(":sk_prefix", AttributeValue::S("MENU#".to_string()))
+        .send()
+        .await
+        .map_err(|e| {
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("DynamoDB query failed: {}", e))
+        })?;
+
+    let menus: Vec<TimedMenu> = query_result
+        .items()
+        .iter()
+        .filter_map(|item| {
+            // SKが指定時間で終わるもののみフィルタ
+            let sk = item.get("SK")?.as_s().ok()?;
+            if sk.ends_with(&sk_suffix) {
+                serde_dynamo::from_item(item.clone()).ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(Json(menus))
 }
 
 /// 全履歴取得エンドポイント - グラフ表示用に全期間のデータを取得
