@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/DumbbellProLog/cleanup-and-previews/sw.js', { scope: '/DumbbellProLog/cleanup-and-previews/' })})}
