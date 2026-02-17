@@ -1,4 +1,4 @@
-// AIモジュール - Google AI Studio (Gemini 3 Flash) 統合
+// AIモジュール - Google AI Studio (Gemini 3 Flash Preview) 統合
 // トレーニング履歴を分析し、次回の推奨重量・回数を提案する
 // 部位×時間別のトレーニングメニューを自動生成する
 

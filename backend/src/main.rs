@@ -38,7 +38,7 @@ async fn main() -> Result<(), Error> {
 
     let table_name = std::env::var("TABLE_NAME").unwrap_or_else(|_| "DumbbellProLog".to_string());
     let gemini_model_id =
-        std::env::var("GEMINI_MODEL_ID").unwrap_or_else(|_| "gemini-3.0-flash".to_string());
+        std::env::var("GEMINI_MODEL_ID").unwrap_or_else(|_| "gemini-3-flash-preview".to_string());
     let gemini_api_key = std::env::var("GEMINI_API_KEY").unwrap_or_else(|_| String::new());
 
     let state = Arc::new(AppState {
@@ -225,7 +225,7 @@ async fn analyze_growth(
 /// AI情報エンドポイント - 管理画面から使用AIモデルを確認する
 async fn get_ai_info(State(state): State<Arc<AppState>>) -> Json<AIInfoResponse> {
     Json(AIInfoResponse {
-        model_name: "Gemini 3 Flash".to_string(),
+        model_name: "Gemini 3 Flash Preview".to_string(),
         provider: "Google AI Studio".to_string(),
         model_id: state.gemini_model_id.clone(),
     })
