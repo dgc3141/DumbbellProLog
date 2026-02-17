@@ -6,10 +6,19 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "frontend"
+    groups:
+      npm-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
   # バックエンド (Cargo)
   - package-ecosystem: "cargo"
@@ -17,10 +26,19 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "backend"
+    groups:
+      cargo-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -28,6 +46,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
