@@ -10,6 +10,8 @@ import { TimeSelectView } from './components/TimeSelectView';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { COGNITO_CONFIG } from './auth-config';
 import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { Skeleton } from './components/ui/Skeleton';
 
 const API_BASE = 'https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com';
 
@@ -94,9 +96,15 @@ export default function App() {
     localStorage.setItem('app_theme', theme);
   }, [theme]);
 
-  // トレーニング完了時にAI推奨を自動取得 & メニュー再生成トリガー
+  // トレーニング完了時にAI推奨を自動取得 & メニュー再生成トリガー & Confetti 🎉
   useEffect(() => {
     if (isSessionComplete && session) {
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors: ['#3b82f6', '#f59e0b', '#10b981', '#ef4444']
+      });
       fetchAIRecommendation();
       triggerMenuGeneration();
     }
@@ -313,8 +321,18 @@ export default function App() {
 
   if (isAuthLoading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-50'}`}>
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${theme === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-50'}`}>
+        <div className="w-full max-w-sm space-y-6">
+          <Skeleton className="h-48 w-full rounded-3xl" theme={theme} />
+          <div className="space-y-4">
+            <Skeleton className="h-16 w-full rounded-2xl" theme={theme} />
+            <Skeleton className="h-16 w-full rounded-2xl" theme={theme} />
+            <Skeleton className="h-16 w-full rounded-2xl" theme={theme} />
+          </div>
+          <div className="flex justify-center pt-8">
+            <Skeleton className="h-8 w-32 rounded-full" theme={theme} />
+          </div>
+        </div>
       </div>
     );
   }

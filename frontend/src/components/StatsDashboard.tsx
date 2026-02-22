@@ -5,7 +5,7 @@ import { Sparkles, AlertTriangle, Lightbulb } from 'lucide-react';
 import type { WorkoutSet, AIAnalysisResponse } from '../types';
 import PerformanceGraph from './PerformanceGraph';
 import { EXERCISES } from '../routines';
-
+import { Skeleton } from './ui/Skeleton';
 interface StatsDashboardProps {
     history: WorkoutSet[];
     theme: 'light' | 'dark';
@@ -87,6 +87,21 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
     const chartColor = "#3b82f6";
     const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
 
+    if (isLoadingHistory) {
+        return (
+            <div className="space-y-10 py-10">
+                <div className="flex flex-col items-center gap-4">
+                    <Skeleton className="h-4 w-32" theme={theme} />
+                    <Skeleton className="h-12 w-64 rounded-2xl" theme={theme} />
+                </div>
+                <div>
+                    <Skeleton className="h-4 w-48 mb-6 mx-auto" theme={theme} />
+                    <Skeleton className="h-64 w-full rounded-[2rem]" theme={theme} />
+                </div>
+            </div>
+        );
+    }
+
     if (history.length === 0 && !isLoadingHistory) {
         return (
             <div className="flex flex-col items-center justify-center py-20 opacity-50">
@@ -140,9 +155,14 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                         </button>
                     </div>
                 ) : isAnalyzing ? (
-                    <div className="flex flex-col items-center justify-center py-4">
-                        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-2" />
-                        <p className="text-sm text-slate-500">Geminiが全履歴を分析中...</p>
+                    <div className="space-y-4 py-4">
+                        <Skeleton className="h-6 w-48" theme={theme} />
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-full" theme={theme} />
+                            <Skeleton className="h-4 w-[90%]" theme={theme} />
+                            <Skeleton className="h-4 w-[80%]" theme={theme} />
+                        </div>
+                        <Skeleton className="h-20 w-full mt-4 rounded-xl" theme={theme} />
                     </div>
                 ) : analysis && (
                     <div className="space-y-6">
