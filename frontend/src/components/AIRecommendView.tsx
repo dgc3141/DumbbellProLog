@@ -4,7 +4,7 @@
 import { X, Sparkles, TrendingUp, MessageSquare } from 'lucide-react';
 import type { AIRecommendation } from '../types';
 import { EXERCISES } from '../routines';
-
+import { Skeleton } from './ui/Skeleton';
 interface AIRecommendViewProps {
     recommendation: AIRecommendation | null;
     isLoading: boolean;
@@ -44,9 +44,11 @@ export default function AIRecommendView({
 
                 {/* ローディング状態 */}
                 {isLoading && (
-                    <div className="flex flex-col items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4" />
-                        <p className="text-slate-500">AIがトレーニングを分析中...</p>
+                    <div className="space-y-4 py-8">
+                        <Skeleton className="h-6 w-48 mb-6" theme={theme} />
+                        <Skeleton className="h-24 w-full rounded-2xl" theme={theme} />
+                        <Skeleton className="h-24 w-full rounded-2xl" theme={theme} />
+                        <Skeleton className="h-16 w-full rounded-xl mt-4" theme={theme} />
                     </div>
                 )}
 

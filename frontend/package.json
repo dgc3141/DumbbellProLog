@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.991.0",
+    "@types/canvas-confetti": "^1.9.0",
     "amazon-cognito-identity-js": "^6.3.16",
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^12.34.3",
     "lucide-react": "^0.574.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.4",
