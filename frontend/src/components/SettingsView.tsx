@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CognitoIdentityProviderClient, StartWebAuthnRegistrationCommand, CompleteWebAuthnRegistrationCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { ShieldCheck, Fingerprint, Loader2, CheckCircle2, XCircle, Sparkles, Bot } from 'lucide-react';
 import type { AIInfoResponse } from '../types';
@@ -19,14 +19,7 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
     const [aiInfo, setAiInfo] = useState<AIInfoResponse | null>(null);
     const [isAiInfoLoading, setIsAiInfoLoading] = useState(false);
 
-    // AI情報を取得
-    useEffect(() => {
-        if (activeTab === 'ai' && !aiInfo) {
-            fetchAIInfo();
-        }
-    }, [activeTab]);
-
-    const fetchAIInfo = async () => {
+    const fetchAIInfo = useCallback(async () => {
         setIsAiInfoLoading(true);
         try {
             const headers: Record<string, string> = {};
@@ -45,7 +38,14 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
         } finally {
             setIsAiInfoLoading(false);
         }
-    };
+    }, [apiBase, session]);
+
+    // AI情報を取得
+    useEffect(() => {
+        if (activeTab === 'ai' && !aiInfo) {
+            fetchAIInfo();
+        }
+    }, [activeTab, aiInfo, fetchAIInfo]);
 
     const registerPasskey = async () => {
         setIsLoading(true);

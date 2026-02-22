@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { RpeLevel, WorkoutSet, AIRecommendation, TimedMenu, MenuExercise } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
@@ -96,22 +96,8 @@ export default function App() {
     localStorage.setItem('app_theme', theme);
   }, [theme]);
 
-  // トレーニング完了時にAI推奨を自動取得 & メニュー再生成トリガー & Confetti 🎉
-  useEffect(() => {
-    if (isSessionComplete && session) {
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.5 },
-        colors: ['#3b82f6', '#f59e0b', '#10b981', '#ef4444']
-      });
-      fetchAIRecommendation();
-      triggerMenuGeneration();
-    }
-  }, [isSessionComplete]);
-
   // AI推奨を取得する関数
-  const fetchAIRecommendation = async () => {
+  const fetchAIRecommendation = useCallback(async () => {
     if (!session) return;
 
     setIsAiLoading(true);
@@ -141,10 +127,10 @@ export default function App() {
     } finally {
       setIsAiLoading(false);
     }
-  };
+  }, [session]);
 
   // セッション完了時にバックグラウンドでメニュー再生成
-  const triggerMenuGeneration = async () => {
+  const triggerMenuGeneration = useCallback(async () => {
     if (!session) return;
 
     try {
@@ -160,7 +146,21 @@ export default function App() {
     } catch (e) {
       console.warn('Menu generation trigger failed (non-critical):', e);
     }
-  };
+  }, [session]);
+
+  // トレーニング完了時にAI推奨を自動取得 & メニュー再生成トリガー & Confetti 🎉
+  useEffect(() => {
+    if (isSessionComplete && session) {
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors: ['#3b82f6', '#f59e0b', '#10b981', '#ef4444']
+      });
+      fetchAIRecommendation();
+      triggerMenuGeneration();
+    }
+  }, [isSessionComplete, session, fetchAIRecommendation, triggerMenuGeneration]);
 
   // Handle Menu Start (from TimeSelectView)
   const startMenu = (menu: TimedMenu) => {
