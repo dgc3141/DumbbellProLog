@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { COGNITO_CONFIG } from '../auth-config';
+import type { CognitoSession } from '../types';
 
 export function useAuth() {
-    const [session, setSession] = useState<any>(null);
+    const [session, setSession] = useState<CognitoSession | null>(null);
     const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-    // Persistence & Initialization
     useEffect(() => {
-        // Check Cognito Session
         const userPool = new CognitoUserPool({
             UserPoolId: COGNITO_CONFIG.UserPoolId,
             ClientId: COGNITO_CONFIG.ClientId,
@@ -18,12 +17,13 @@ export function useAuth() {
         if (user) {
             user.getSession((_err: any, currentSession: any) => {
                 if (currentSession && currentSession.isValid()) {
-                    setSession(currentSession);
+                    setSession(currentSession as CognitoSession);
                 }
                 setIsAuthLoading(false);
             });
         } else {
-            setTimeout(() => setIsAuthLoading(false), 0);
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setIsAuthLoading(false);
         }
     }, []);
 

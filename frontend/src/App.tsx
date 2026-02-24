@@ -11,8 +11,7 @@ import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut } from
 import confetti from 'canvas-confetti';
 import { Skeleton } from './components/ui/Skeleton';
 import { useAuth, useWorkoutSession } from './hooks';
-
-const API_BASE = 'https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com';
+import { API_BASE } from './config';
 
 const Layout = ({
   children,
@@ -98,7 +97,10 @@ const Layout = ({
 
 export default function App() {
   // Global State
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('app_theme');
+    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+  });
   const [view, setView] = useState<'time_select' | 'training' | 'stats' | 'settings'>('time_select');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -131,13 +133,6 @@ export default function App() {
     currentMenuExercise, totalSetsForCurrent, currentRestDuration
   } = useWorkoutSession(session, vibrate, showToast);
 
-  // Persistence & Initialization
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('app_theme');
-    if (savedTheme === 'light' || savedTheme === 'dark') {
-      setTimeout(() => setTheme(savedTheme), 0);
-    }
-  }, []);
 
   useEffect(() => {
     localStorage.setItem('app_theme', theme);
@@ -163,7 +158,7 @@ export default function App() {
   };
 
   const lastSet = history
-    .filter((h: any) => h.exercise_id === currentMenuExercise?.exerciseName)
+    .filter(h => h.exercise_id === currentMenuExercise?.exerciseName)
     .slice(-1)[0];
 
   const totalSetsInMenu = activeMenu?.exercises.reduce((acc, ex) => acc + ex.sets, 0) || 0;
@@ -347,7 +342,7 @@ export default function App() {
             theme={theme}
             reps={selectedRepsMap[currentMenuExercise?.exerciseName || ''] || (currentMenuExercise?.reps || 10)}
             isLoading={isLoading}
-            onRepsChange={(reps: number) => setSelectedRepsMap((prev: any) => ({ ...prev, [currentMenuExercise?.exerciseName || '']: reps }))}
+            onRepsChange={(reps: number) => setSelectedRepsMap(prev => ({ ...prev, [currentMenuExercise?.exerciseName || '']: reps }))}
             onLog={handleLog}
           />
         )}

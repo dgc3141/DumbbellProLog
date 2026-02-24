@@ -1,10 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { RpeLevel, WorkoutSet, AIRecommendation, TimedMenu } from '../types';
+import type { RpeLevel, WorkoutSet, AIRecommendation, TimedMenu, CognitoSession } from '../types';
+import { API_BASE } from '../config';
 
-const API_BASE = 'https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com';
-
-export function useWorkoutSession(session: any, vibrate: (pattern: number | number[]) => void, showToast: (msg: string, type?: 'success' | 'error') => void) {
-    const [history, setHistory] = useState<WorkoutSet[]>([]);
+export function useWorkoutSession(session: CognitoSession | null, vibrate: (pattern: number | number[]) => void, showToast: (msg: string, type?: 'success' | 'error') => void) {
+    // ローカルストレージから履歴を初期値として読み込む
+    const [history, setHistory] = useState<WorkoutSet[]>(() => {
+        try {
+            const saved = localStorage.getItem('workout_state_v3');
+            if (saved) {
+                const state = JSON.parse(saved);
+                return state.history || [];
+            }
+        } catch (e) { console.error(e); }
+        return [];
+    });
     const [activeMenu, setActiveMenu] = useState<TimedMenu | null>(null);
     const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
     const [currentSet, setCurrentSet] = useState(1);
@@ -20,17 +29,6 @@ export function useWorkoutSession(session: any, vibrate: (pattern: number | numb
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
     const [showAiModal, setShowAiModal] = useState(false);
-
-    // Initialization (History)
-    useEffect(() => {
-        const saved = localStorage.getItem('workout_state_v3');
-        if (saved) {
-            try {
-                const state = JSON.parse(saved);
-                setHistory(state.history || []);
-            } catch (e) { console.error(e); }
-        }
-    }, []);
 
     useEffect(() => {
         localStorage.setItem('workout_state_v3', JSON.stringify({ history }));
@@ -56,9 +54,10 @@ export function useWorkoutSession(session: any, vibrate: (pattern: number | numb
             const data: AIRecommendation = await response.json();
             setAiRecommendation(data);
             vibrate([50, 30, 100]);
-        } catch (e: any) {
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'AI推奨の取得に失敗しました';
             console.error('AI recommendation error:', e);
-            setAiError(e.message || 'AI推奨の取得に失敗しました');
+            setAiError(msg);
         } finally {
             setIsAiLoading(false);
         }
@@ -122,7 +121,7 @@ export function useWorkoutSession(session: any, vibrate: (pattern: number | numb
             if (!response.ok) throw new Error('Failed to save');
 
             setHistory(prev => [...prev, newSet]);
-            setTotalVolume(v => v + weight * reps);
+            setTotalVolume((v: number) => v + weight * reps);
             setIsResting(true);
             vibrate([50, 30, 50]);
             showToast('Log Saved Successfully');
@@ -130,7 +129,7 @@ export function useWorkoutSession(session: any, vibrate: (pattern: number | numb
             console.warn(e);
             showToast('Sync Failed - Saved Locally', 'error');
             setHistory(prev => [...prev, newSet]);
-            setTotalVolume(v => v + weight * reps);
+            setTotalVolume((v: number) => v + weight * reps);
             setIsResting(true);
         } finally {
             setIsLoading(false);
@@ -141,7 +140,7 @@ export function useWorkoutSession(session: any, vibrate: (pattern: number | numb
         if (!activeMenu) return;
         setIsResting(false);
         if (currentSet < totalSetsForCurrent) {
-            setCurrentSet(s => s + 1);
+            setCurrentSet((s: number) => s + 1);
         } else {
             if (currentExerciseIndex < activeMenu.exercises.length - 1) {
                 const nextIdx = currentExerciseIndex + 1;
