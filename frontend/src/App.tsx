@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { TimedMenu } from './types';
+import type { TimedMenu, CognitoSession } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
 import StatsDashboard from './components/StatsDashboard';
@@ -29,10 +29,10 @@ const Layout = ({
   hideNav?: boolean,
   theme: 'light' | 'dark',
   toast: { message: string, type: 'success' | 'error' } | null,
-  session: any,
+  session: CognitoSession | null,
   view: string,
-  setView: (v: any) => void,
-  setTheme: (t: any) => void,
+  setView: (v: 'time_select' | 'training' | 'stats' | 'settings') => void,
+  setTheme: (t: 'light' | 'dark') => void,
   logout?: () => void,
   showToast?: (m: string) => void
 }) => (
