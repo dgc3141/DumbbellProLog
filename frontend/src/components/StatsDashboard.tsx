@@ -45,7 +45,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         };
 
         fetchFullHistory();
-    }, [session]);
+    }, [session, onUpdateHistory]);
 
     // AI長期分析を取得する
     const fetchAIAnalysis = async () => {
