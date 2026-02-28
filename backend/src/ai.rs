@@ -5,7 +5,7 @@
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 
-use crate::types::{TimedMenu, WorkoutSet};
+use crate::types::{EndlessMenu, WorkoutSet};
 
 // === Gemini API リクエスト/レスポンス型 ===
 
@@ -93,7 +93,7 @@ pub struct GenerateMenusRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerateMenusResponse {
-    pub menus: Vec<TimedMenu>,
+    pub menus: Vec<EndlessMenu>,
     pub generated_count: usize,
 }
 
@@ -257,13 +257,13 @@ pub async fn get_growth_analysis(
     Ok(analysis)
 }
 
-/// 部位×時間別のトレーニングメニューを一括生成
-pub async fn generate_timed_menus(
+/// 部位ごとのトレーニングメニューを生成
+pub async fn generate_endless_menus(
     http_client: &HttpClient,
     api_key: &str,
     model_id: &str,
     workout_history: &[WorkoutSet],
-) -> Result<Vec<TimedMenu>, String> {
+) -> Result<Vec<EndlessMenu>, String> {
     let history_summary = if workout_history.is_empty() {
         "トレーニング履歴なし（初心者向けメニューを作成してください）".to_string()
     } else {
@@ -273,15 +273,13 @@ pub async fn generate_timed_menus(
 
     let prompt = format!(
         r#"あなたはダンベルトレーニング専門のパーソナルトレーナーです。
-以下のトレーニング履歴を元に、3つの部位（push/pull/legs）× 3つの時間（15分/30分/60分）= 合計9パターンのトレーニングメニューを生成してください。
+以下のトレーニング履歴を元に、3つの部位（push/pull/legs）のトレーニングメニューを生成してください。
+時間の制限はありません。各部位につき、優先度の高い順番から 6〜8種目 を提案してください。
 
 ## 重要なルール
 - ダンベルのみで実施可能なエクササイズに限定
-- レスト時間は種目の強度と時間枠に応じて最適化（最低60秒）
-  - 15分メニュー: レスト60-75秒（テンポ重視）
-  - 30分メニュー: レスト60-90秒（バランス重視）
-  - 60分メニュー: レスト90-180秒（筋力重視）
-- 各メニューの合計時間（エクササイズ時間＋レスト）が指定時間に収まるように調整
+- レスト時間は種目の強度に応じて推奨値を出力（最低60秒、コンパウンド種目は90〜180秒）
+- 種目の並び順は、多関節（コンパウンド）種目から単関節（アイソレーション）種目へと進むようにしてください
 
 ## ユーザーの直近履歴
 {}
@@ -291,29 +289,27 @@ pub async fn generate_timed_menus(
 [
   {{
     "bodyPart": "push",
-    "durationMinutes": 15,
     "exercises": [
       {{
         "exerciseName": "種目名（日本語）",
         "sets": 3,
         "reps": 12,
         "recommendedWeight": 10.0,
-        "restSeconds": 30,
+        "restSeconds": 90,
         "notes": "フォームのポイント"
       }}
     ],
-    "totalRestSeconds": 180,
     "generatedAt": "2026-02-17T21:00:00Z"
   }}
 ]
 
-合計9パターン（push×3時間, pull×3時間, legs×3時間）を配列で返してください。"#,
+合計3パターン（push, pull, legs）を配列で返してください。"#,
         history_summary
     );
 
     let text = call_gemini(http_client, api_key, model_id, &prompt).await?;
 
-    let menus: Vec<TimedMenu> = serde_json::from_str(&text)
+    let menus: Vec<EndlessMenu> = serde_json::from_str(&text)
         .map_err(|e| format!("メニューのパースに失敗: {}. 元のテキスト: {}", e, text))?;
 
     Ok(menus)
@@ -322,14 +318,13 @@ pub async fn generate_timed_menus(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::TimedMenu;
+    use crate::types::EndlessMenu;
 
     #[test]
     fn test_parse_gemini_response() {
         let sample_json = r#"[
             {
                 "bodyPart": "push",
-                "durationMinutes": 15,
                 "exercises": [
                     {
                         "exerciseName": "Push Up",
@@ -340,12 +335,11 @@ mod tests {
                         "notes": "Keep straight"
                     }
                 ],
-                "totalRestSeconds": 180,
                 "generatedAt": "2023-01-01T12:00:00Z"
             }
         ]"#;
 
-        let menus: Vec<TimedMenu> =
+        let menus: Vec<EndlessMenu> =
             serde_json::from_str(sample_json).expect("Failed to parse JSON");
         assert_eq!(menus.len(), 1);
         assert_eq!(menus[0].body_part, "push");

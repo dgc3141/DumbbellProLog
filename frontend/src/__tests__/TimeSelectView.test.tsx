@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TimeSelectView } from '../components/TimeSelectView';
-import type { TimedMenu, CognitoSession } from '../types';
+import type { EndlessMenu, CognitoSession } from '../types';
 
 // Mock Lucide icons to avoid rendering issues in test environment
 vi.mock('lucide-react', () => ({
@@ -22,26 +22,24 @@ describe('TimeSelectView', () => {
         getUsername: () => 'testuser',
     };
 
-    it('renders duration options initially', () => {
+    it('renders body part options initially', () => {
         render(
             <TimeSelectView
-                theme="light"
                 session={mockSession}
                 apiBase={mockApiBase}
                 onStartMenu={mockOnStartMenu}
             />
         );
 
-        expect(screen.getByText('15 min')).toBeInTheDocument();
-        expect(screen.getByText('30 min')).toBeInTheDocument();
-        expect(screen.getByText('60 min')).toBeInTheDocument();
+        expect(screen.getByText('Push')).toBeInTheDocument();
+        expect(screen.getByText('Pull')).toBeInTheDocument();
+        expect(screen.getByText('Legs')).toBeInTheDocument();
     });
 
-    it('fetches menus when a duration is selected', async () => {
+    it('fetches menus when a body part is selected and calls onStartMenu', async () => {
         // Mock fetch response
-        const mockMenus: TimedMenu[] = [{
+        const mockMenus: EndlessMenu[] = [{
             bodyPart: 'push',
-            durationMinutes: 15,
             exercises: [{
                 exerciseName: 'Test Press',
                 sets: 3,
@@ -50,7 +48,6 @@ describe('TimeSelectView', () => {
                 restSeconds: 60,
                 notes: 'Test note'
             }],
-            totalRestSeconds: 180,
             generatedAt: '2023-01-01'
         }];
 
@@ -62,33 +59,31 @@ describe('TimeSelectView', () => {
 
         render(
             <TimeSelectView
-                theme="light"
                 session={mockSession}
                 apiBase={mockApiBase}
                 onStartMenu={mockOnStartMenu}
             />
         );
 
-        // Click 15 min button
-        fireEvent.click(screen.getByText('15 min'));
+        // Click Push button
+        fireEvent.click(screen.getByText('Push'));
 
-        // Should show loading or immediately show content (depending on async speed)
-        // In this test, we verify fetch was called with correct params
         await waitFor(() => {
             expect(fetchMock).toHaveBeenCalledWith(
-                expect.stringContaining('/menus/by-duration'),
+                expect.stringContaining('/menus/by-body-part'),
                 expect.objectContaining({
                     method: 'POST',
                     headers: expect.objectContaining({
                         'Authorization': 'Bearer mock-token'
-                    })
+                    }),
+                    body: expect.stringContaining('"bodyPart":"push"')
                 })
             );
         });
 
-        // Should display the menu
+        // Should call onStartMenu with the fetched menu
         await waitFor(() => {
-            expect(screen.getByText('15 MIN MENUS')).toBeInTheDocument();
+            expect(mockOnStartMenu).toHaveBeenCalledWith(mockMenus[0]);
         });
     });
 });

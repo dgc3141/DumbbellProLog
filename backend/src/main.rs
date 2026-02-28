@@ -3,7 +3,8 @@ mod types;
 
 use ai::{
     AIAnalysisResponse, AIRecommendRequest, AIRecommendResponse, GenerateMenusRequest,
-    GenerateMenusResponse, generate_timed_menus, get_growth_analysis, get_training_recommendation,
+    GenerateMenusResponse, generate_endless_menus, get_growth_analysis,
+    get_training_recommendation,
 };
 use aws_sdk_dynamodb::{Client as DynamoClient, types::AttributeValue};
 use axum::{
@@ -17,7 +18,7 @@ use reqwest::Client as HttpClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
-use types::{AIInfoResponse, MenuByDurationRequest, TimedMenu, WorkoutSet};
+use types::{AIInfoResponse, EndlessMenu, MenuByBodyPartRequest, WorkoutSet};
 
 #[derive(Clone)]
 struct AppState {
@@ -56,7 +57,7 @@ async fn main() -> Result<(), Error> {
         .route("/ai/analyze-growth", post(analyze_growth))
         .route("/ai/generate-menus", post(trigger_menu_generation))
         .route("/ai/info", get(get_ai_info))
-        .route("/menus/by-duration", post(get_menus_by_duration))
+        .route("/menus/by-body-part", post(get_menus_by_body_part))
         .route("/stats/history", post(get_full_history))
         .layer(CorsLayer::permissive())
         .with_state(state);
@@ -265,7 +266,7 @@ async fn trigger_menu_generation(
         .collect();
 
     // Geminiでメニューを生成
-    let menus = generate_timed_menus(
+    let menus = generate_endless_menus(
         &state.http_client,
         &state.gemini_api_key,
         &state.gemini_model_id,
@@ -292,10 +293,7 @@ async fn trigger_menu_generation(
         item.insert("PK".to_string(), AttributeValue::S(pk.clone()));
         item.insert(
             "SK".to_string(),
-            AttributeValue::S(format!(
-                "MENU#{}#{}min",
-                menu.body_part, menu.duration_minutes
-            )),
+            AttributeValue::S(format!("MENU#{}", menu.body_part)),
         );
 
         state
@@ -320,22 +318,22 @@ async fn trigger_menu_generation(
     }))
 }
 
-/// 時間指定でメニューを取得
-async fn get_menus_by_duration(
+/// 部位指定でメニューを取得
+async fn get_menus_by_body_part(
     State(state): State<Arc<AppState>>,
-    Json(request): Json<MenuByDurationRequest>,
-) -> Result<Json<Vec<TimedMenu>>, (axum::http::StatusCode, String)> {
+    Json(request): Json<MenuByBodyPartRequest>,
+) -> Result<Json<Vec<EndlessMenu>>, (axum::http::StatusCode, String)> {
     let pk = format!("USER#{}", request.user_id);
-    let sk_suffix = format!("{}min", request.duration_minutes);
+    let sk = format!("MENU#{}", request.body_part);
 
-    // 指定時間のメニューを全部位から取得
+    // 指定部位のメニューを取得
     let query_result = state
         .db_client
         .query()
         .table_name(&state.table_name)
-        .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
+        .key_condition_expression("PK = :pk AND SK = :sk")
         .expression_attribute_values(":pk", AttributeValue::S(pk))
-        .expression_attribute_values(":sk_prefix", AttributeValue::S("MENU#".to_string()))
+        .expression_attribute_values(":sk", AttributeValue::S(sk))
         .send()
         .await
         .map_err(|e| {
@@ -345,18 +343,10 @@ async fn get_menus_by_duration(
             )
         })?;
 
-    let menus: Vec<TimedMenu> = query_result
+    let menus: Vec<EndlessMenu> = query_result
         .items()
         .iter()
-        .filter_map(|item| {
-            // SKが指定時間で終わるもののみフィルタ
-            let sk = item.get("SK")?.as_s().ok()?;
-            if sk.ends_with(&sk_suffix) {
-                serde_dynamo::from_item(item.clone()).ok()
-            } else {
-                None
-            }
-        })
+        .filter_map(|item| serde_dynamo::from_item(item.clone()).ok())
         .collect();
 
     Ok(Json(menus))
