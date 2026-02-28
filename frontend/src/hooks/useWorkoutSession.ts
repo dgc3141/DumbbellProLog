@@ -158,6 +158,19 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         }
     }, [activeMenu, currentExerciseIndex, currentSet, totalSetsForCurrent]);
 
+    const skipExercise = useCallback(() => {
+        if (!activeMenu) return;
+        setIsResting(false);
+        if (currentExerciseIndex < activeMenu.exercises.length - 1) {
+            const nextIdx = currentExerciseIndex + 1;
+            setCurrentExerciseIndex(nextIdx);
+            setCurrentSet(1);
+            setWeight(activeMenu.exercises[nextIdx].recommendedWeight);
+        } else {
+            setIsSessionComplete(true);
+        }
+    }, [activeMenu, currentExerciseIndex]);
+
     return {
         history, setHistory,
         activeMenu, setActiveMenu,
@@ -171,7 +184,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         aiRecommendation, isAiLoading, aiError, showAiModal, setShowAiModal,
         fetchAIRecommendation, triggerMenuGeneration,
 
-        startMenu, handleLog, finishRest,
+        startMenu, handleLog, finishRest, skipExercise,
         currentMenuExercise, totalSetsForCurrent, currentRestDuration
     };
 }
