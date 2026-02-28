@@ -108,14 +108,18 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
             rpe
         };
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         try {
             const response = await fetch(`${API_BASE}/log`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': session.getIdToken().getJwtToken()
+                    'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
                 },
-                body: JSON.stringify(newSet)
+                body: JSON.stringify(newSet),
+                signal: controller.signal
             });
 
             if (!response.ok) throw new Error('Failed to save');
@@ -132,6 +136,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
             setTotalVolume((v: number) => v + weight * reps);
             setIsResting(true);
         } finally {
+            clearTimeout(timeoutId);
             setIsLoading(false);
         }
     }, [currentMenuExercise, isLoading, session, weight, showToast, vibrate]);
