@@ -9,7 +9,7 @@ interface LoggingFlowProps {
 }
 
 export default function LoggingFlow({ theme = 'dark', reps: selectedReps, isLoading = false, onRepsChange, onLog }: LoggingFlowProps) {
-    const repsOptions = Array.from({ length: 8 }, (_, i) => i + 8); // 8 to 15 reps
+    const repsOptions = Array.from({ length: 16 }, (_, i) => i + 1); // 1 to 16 reps
 
     const rpeOptions: { level: RpeLevel; label: string; icon: string; color: string }[] = [
         { level: 'easy', label: '余裕', icon: '😊', color: 'bg-green-500/20 text-green-400 border-green-500/50' },

@@ -129,7 +129,7 @@ export default function App() {
     aiRecommendation, isAiLoading, aiError, showAiModal, setShowAiModal,
     fetchAIRecommendation, triggerMenuGeneration,
 
-    startMenu, handleLog, finishRest,
+    startMenu, handleLog, finishRest, skipExercise,
     currentMenuExercise, totalSetsForCurrent, currentRestDuration
   } = useWorkoutSession(session, vibrate, showToast);
 
@@ -301,7 +301,15 @@ export default function App() {
       {/* Exercise Card */}
       <div className="glass-card rounded-[2.5rem] p-7 border border-slate-700/50 shadow-2xl relative mb-6">
         <div className="flex justify-between items-start mb-2">
-          <h2 className="text-xl font-black leading-tight">{currentMenuExercise?.exerciseName}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-black leading-tight">{currentMenuExercise?.exerciseName}</h2>
+            <button
+              onClick={skipExercise}
+              className="px-3 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-colors"
+            >
+              SKIP
+            </button>
+          </div>
           <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{activeMenu.exercises.length}</span>
         </div>
         <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest italic mb-6">{currentMenuExercise?.notes}</p>
