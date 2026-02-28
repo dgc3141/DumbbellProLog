@@ -57,11 +57,9 @@ export interface MenuExercise {
     notes: string;
 }
 
-export interface TimedMenu {
+export interface EndlessMenu {
     bodyPart: string;          // "push" | "pull" | "legs"
-    durationMinutes: number;   // 15 | 30 | 60
     exercises: MenuExercise[];
-    totalRestSeconds: number;
     generatedAt: string;
 }
 
@@ -72,11 +70,9 @@ export interface AIInfoResponse {
 }
 
 export interface GenerateMenusResponse {
-    menus: TimedMenu[];
+    menus: EndlessMenu[];
     generatedCount: number;
 }
-
-export type DurationOption = 15 | 30 | 60;
 
 // Cognito Session Interface for better type safety in components/tests
 export interface CognitoSession {

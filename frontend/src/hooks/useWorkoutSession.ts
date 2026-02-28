@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { RpeLevel, WorkoutSet, AIRecommendation, TimedMenu, CognitoSession } from '../types';
+import type { RpeLevel, WorkoutSet, AIRecommendation, EndlessMenu, CognitoSession } from '../types';
 import { API_BASE } from '../config';
 
 export function useWorkoutSession(session: CognitoSession | null, vibrate: (pattern: number | number[]) => void, showToast: (msg: string, type?: 'success' | 'error') => void) {
@@ -14,7 +14,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         } catch (e) { console.error(e); }
         return [];
     });
-    const [activeMenu, setActiveMenu] = useState<TimedMenu | null>(null);
+    const [activeMenu, setActiveMenu] = useState<EndlessMenu | null>(null);
     const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
     const [currentSet, setCurrentSet] = useState(1);
     const [isResting, setIsResting] = useState(false);
@@ -79,7 +79,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         }
     }, [session]);
 
-    const startMenu = useCallback((menu: TimedMenu) => {
+    const startMenu = useCallback((menu: EndlessMenu) => {
         setActiveMenu(menu);
         setCurrentExerciseIndex(0);
         setCurrentSet(1);
@@ -171,6 +171,11 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         }
     }, [activeMenu, currentExerciseIndex]);
 
+    const finishSession = useCallback(() => {
+        setIsSessionComplete(true);
+        setIsResting(false);
+    }, []);
+
     return {
         history, setHistory,
         activeMenu, setActiveMenu,
@@ -184,7 +189,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         aiRecommendation, isAiLoading, aiError, showAiModal, setShowAiModal,
         fetchAIRecommendation, triggerMenuGeneration,
 
-        startMenu, handleLog, finishRest, skipExercise,
+        startMenu, handleLog, finishRest, skipExercise, finishSession,
         currentMenuExercise, totalSetsForCurrent, currentRestDuration
     };
 }

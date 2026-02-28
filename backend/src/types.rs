@@ -44,23 +44,21 @@ pub struct MenuExercise {
     pub notes: String,
 }
 
-/// 時間×部位ごとのトレーニングメニュー
+/// 部位ごとのエンドレス・トレーニングメニュー
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct TimedMenu {
-    pub body_part: String,     // "push" | "pull" | "legs"
-    pub duration_minutes: u32, // 15 | 30 | 60
+pub struct EndlessMenu {
+    pub body_part: String, // "push" | "pull" | "legs"
     pub exercises: Vec<MenuExercise>,
-    pub total_rest_seconds: u32,
     pub generated_at: String,
 }
 
 /// メニュー取得リクエスト
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MenuByDurationRequest {
+pub struct MenuByBodyPartRequest {
     pub user_id: String,
-    pub duration_minutes: u32,
+    pub body_part: String,
 }
 
 /// AI情報レスポンス（管理画面用）
@@ -92,10 +90,9 @@ mod tests {
     }
 
     #[test]
-    fn test_timed_menu_serialization() {
-        let menu = TimedMenu {
+    fn test_endless_menu_serialization() {
+        let menu = EndlessMenu {
             body_part: "push".to_string(),
-            duration_minutes: 15,
             exercises: vec![MenuExercise {
                 exercise_name: "Push Up".to_string(),
                 sets: 3,
@@ -104,7 +101,6 @@ mod tests {
                 rest_seconds: 60,
                 notes: "Keep straight".to_string(),
             }],
-            total_rest_seconds: 180,
             generated_at: "2023-01-01T12:00:00Z".to_string(),
         };
 
@@ -113,7 +109,6 @@ mod tests {
 
         let expected = serde_json::json!({
             "bodyPart": "push",
-            "durationMinutes": 15,
             "exercises": [
                 {
                     "exerciseName": "Push Up",
@@ -124,7 +119,6 @@ mod tests {
                     "notes": "Keep straight"
                 }
             ],
-            "totalRestSeconds": 180,
             "generatedAt": "2023-01-01T12:00:00Z"
         });
 

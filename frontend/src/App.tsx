@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { TimedMenu, CognitoSession } from './types';
+import type { EndlessMenu, CognitoSession } from './types';
 import LoggingFlow from './components/LoggingFlow';
 import RestTimer from './components/RestTimer';
 import StatsDashboard from './components/StatsDashboard';
@@ -129,7 +129,7 @@ export default function App() {
     aiRecommendation, isAiLoading, aiError, showAiModal, setShowAiModal,
     fetchAIRecommendation, triggerMenuGeneration,
 
-    startMenu, handleLog, finishRest, skipExercise,
+    startMenu, handleLog, finishRest, skipExercise, finishSession,
     currentMenuExercise, totalSetsForCurrent, currentRestDuration
   } = useWorkoutSession(session, vibrate, showToast);
 
@@ -152,7 +152,7 @@ export default function App() {
     }
   }, [isSessionComplete, session, fetchAIRecommendation, triggerMenuGeneration]);
 
-  const startMenuHandler = (menu: TimedMenu) => {
+  const startMenuHandler = (menu: EndlessMenu) => {
     startMenu(menu);
     setView('training');
   };
@@ -160,12 +160,6 @@ export default function App() {
   const lastSet = history
     .filter(h => h.exercise_id === currentMenuExercise?.exerciseName)
     .slice(-1)[0];
-
-  const totalSetsInMenu = activeMenu?.exercises.reduce((acc, ex) => acc + ex.sets, 0) || 0;
-  const setsCompletedPreviousExercises = activeMenu?.exercises
-    .slice(0, currentExerciseIndex)
-    .reduce((acc, ex) => acc + ex.sets, 0) || 0;
-  const progress = isSessionComplete ? 100 : totalSetsInMenu > 0 ? ((setsCompletedPreviousExercises + (currentSet - 1)) / totalSetsInMenu) * 100 : 0;
 
   // --- RENDERING ---
 
@@ -199,7 +193,6 @@ export default function App() {
     return (
       <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <TimeSelectView
-          theme={theme}
           session={session}
           apiBase={API_BASE}
           onStartMenu={startMenuHandler}
@@ -280,21 +273,24 @@ export default function App() {
 
   return (
     <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
-      {/* Training View Header */}
-      <div className={`w-full h-1 rounded-full mb-6 overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`}>
-        <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${progress}%` }} />
-      </div>
-
       <header className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-xl font-black italic text-blue-500 uppercase">
-            {activeMenu.bodyPart.toUpperCase()} · {activeMenu.durationMinutes}MIN
+            {activeMenu.bodyPart.toUpperCase()} DAY
           </h1>
           <p className="text-[10px] font-bold text-slate-500">{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</p>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-bold text-slate-500 uppercase">Current Vol</p>
-          <p className="text-lg font-black text-blue-400">{totalVolume.toLocaleString()} <span className="text-[10px]">KG</span></p>
+        <div className="text-right flex items-center gap-4">
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">Current Vol</p>
+            <p className="text-lg font-black text-blue-400">{totalVolume.toLocaleString()} <span className="text-[10px]">KG</span></p>
+          </div>
+          <button
+            onClick={finishSession}
+            className="px-4 py-2 bg-blue-500/10 text-blue-500 font-black rounded-xl text-xs uppercase tracking-widest active:scale-95 transition-all"
+          >
+            Finish
+          </button>
         </div>
       </header>
 
