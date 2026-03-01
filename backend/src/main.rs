@@ -37,7 +37,7 @@ async fn main() -> Result<(), Error> {
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
-    let config = aws_config::load_from_env().await;
+    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let db_client = DynamoClient::new(&config);
     let http_client = HttpClient::new();
 
