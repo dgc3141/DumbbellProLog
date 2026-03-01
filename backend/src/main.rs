@@ -88,39 +88,19 @@ async fn log_workout(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<WorkoutSet>,
 ) -> Result<Json<WorkoutSet>, (axum::http::StatusCode, String)> {
-    let mut item: std::collections::HashMap<String, AttributeValue> =
-        serde_dynamo::to_item(&payload).map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Serialization failed: {}", e),
-            )
-        })?;
-
-    // Add keys for GSIs or general structure if needed
-    item.insert("PK".to_string(), AttributeValue::S(payload.pk()));
-    item.insert("SK".to_string(), AttributeValue::S(payload.sk()));
-
-    state
-        .db_client
-        .put_item()
-        .table_name(&state.table_name)
-        .set_item(Some(item))
-        .send()
-        .await
-        .map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("DynamoDB error: {}", e),
-            )
-        })?;
-
-    println!("Saved log to DynamoDB: {:?}", payload);
-    Ok(Json(payload))
+    save_workout_set(&state, payload).await
 }
 
 async fn update_workout_log(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<WorkoutSet>,
+) -> Result<Json<WorkoutSet>, (axum::http::StatusCode, String)> {
+    save_workout_set(&state, payload).await
+}
+
+async fn save_workout_set(
+    state: &AppState,
+    payload: WorkoutSet,
 ) -> Result<Json<WorkoutSet>, (axum::http::StatusCode, String)> {
     let mut item: std::collections::HashMap<String, AttributeValue> =
         serde_dynamo::to_item(&payload).map_err(|e| {
@@ -147,7 +127,7 @@ async fn update_workout_log(
             )
         })?;
 
-    println!("Updated log in DynamoDB: {:?}", payload);
+    // No verbose PII logging here
     Ok(Json(payload))
 }
 
@@ -170,11 +150,7 @@ async fn delete_workout_log(
             )
         })?;
 
-    println!(
-        "Deleted log from DynamoDB: {} - {}",
-        payload.pk(),
-        payload.sk()
-    );
+    println!("Deleted log from DynamoDB");
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 

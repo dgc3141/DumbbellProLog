@@ -245,8 +245,8 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                     <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Workout History</p>
                 </div>
                 <div className="space-y-3">
-                    {history.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 50).map((set, i) => (
-                        <div key={i} className={`p-4 rounded-2xl flex items-center justify-between border ${theme === 'dark' ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
+                    {history.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 50).map((set) => (
+                        <div key={set.timestamp} className={`p-4 rounded-2xl flex items-center justify-between border ${theme === 'dark' ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">
                                     {new Date(set.timestamp).toLocaleDateString()}

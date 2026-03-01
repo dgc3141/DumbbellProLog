@@ -5,8 +5,8 @@ import type { WorkoutSet, RpeLevel } from '../types';
 interface EditLogModalProps {
     set: WorkoutSet;
     theme: 'light' | 'dark';
-    onSave: (updatedSet: WorkoutSet) => void;
-    onDelete: (set: WorkoutSet) => void;
+    onSave: (updatedSet: WorkoutSet) => Promise<void> | void;
+    onDelete: (set: WorkoutSet) => Promise<void> | void;
     onClose: () => void;
 }
 
@@ -14,15 +14,33 @@ export default function EditLogModal({ set, theme, onSave, onDelete, onClose }: 
     const [weight, setWeight] = useState(set.weight);
     const [reps, setReps] = useState(set.reps);
     const [rpe, setRpe] = useState<RpeLevel>(set.rpe);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    const handleSave = () => {
-        onSave({
-            ...set,
-            weight,
-            reps,
-            rpe
-        });
-        onClose();
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave({
+                ...set,
+                weight,
+                reps,
+                rpe
+            });
+            onClose();
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this log?')) return;
+        setIsDeleting(true);
+        try {
+            await onDelete(set);
+            onClose();
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     return (
@@ -46,9 +64,9 @@ export default function EditLogModal({ set, theme, onSave, onDelete, onClose }: 
                         <div className="flex flex-col items-center">
                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-4">Weight (kg)</p>
                             <div className="flex items-center gap-6">
-                                <button onClick={() => setWeight(Math.max(0, weight - 2.5))} className="w-12 h-12 rounded-2xl bg-slate-500/10 flex items-center justify-center font-black">-</button>
+                                <button onClick={() => setWeight(Math.max(0, parseFloat((weight - 2.5).toFixed(1))))} className="w-12 h-12 rounded-2xl bg-slate-500/10 flex items-center justify-center font-black">-</button>
                                 <span className="text-4xl font-black">{weight}</span>
-                                <button onClick={() => setWeight(weight + 2.5)} className="w-12 h-12 rounded-2xl bg-slate-500/10 flex items-center justify-center font-black">+</button>
+                                <button onClick={() => setWeight(parseFloat((weight + 2.5).toFixed(1)))} className="w-12 h-12 rounded-2xl bg-slate-500/10 flex items-center justify-center font-black">+</button>
                             </div>
                         </div>
 
@@ -79,29 +97,21 @@ export default function EditLogModal({ set, theme, onSave, onDelete, onClose }: 
                         </div>
                     </div>
 
-                    <div className="mt-12 flex gap-4">
+                    <div className="flex gap-4 pt-4 border-t border-slate-700/50 mt-12">
                         <button
-                            onClick={() => {
-                                if (window.confirm('Are you sure you want to delete this log?')) {
-                                    onDelete(set);
-                                    onClose();
-                                }
-                            }}
-                            className="flex-1 py-4 rounded-3xl bg-red-500/10 text-red-500 font-black uppercase tracking-wider text-[10px] hover:bg-red-500/20 transition-all"
+                            onClick={handleDelete}
+                            disabled={isSaving || isDeleting}
+                            className={`p-4 rounded-2xl flex items-center justify-center transition-all ${theme === 'dark' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' : 'bg-red-50 text-red-500 hover:bg-red-100'} disabled:opacity-50`}
                         >
-                            <div className="flex items-center justify-center gap-2">
-                                <Trash2 size={14} />
-                                Delete
-                            </div>
+                            <Trash2 size={24} className={isDeleting ? 'animate-pulse' : ''} />
                         </button>
                         <button
                             onClick={handleSave}
-                            className="flex-[2] py-4 rounded-3xl bg-blue-600 text-white font-black uppercase tracking-wider text-[10px] shadow-lg shadow-blue-500/30 hover:bg-blue-500 transition-all active:scale-95"
+                            disabled={isSaving || isDeleting}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:active:scale-100"
                         >
-                            <div className="flex items-center justify-center gap-2">
-                                <Save size={14} />
-                                Save Changes
-                            </div>
+                            <Save size={20} className={isSaving ? 'animate-spin' : ''} />
+                            {isSaving ? 'SAVING...' : 'SAVE CHANGES'}
                         </button>
                     </div>
                 </div>
