@@ -40,14 +40,14 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Build Backend (musl)
+      - name: Build Backend (cargo-lambda)
         run: |
           cd backend
-          sudo apt-get update && sudo apt-get install -y musl-tools
-          cargo build --release --target x86_64-unknown-linux-musl
+          pip3 install cargo-lambda
+          cargo lambda build --release --x86-64
           mkdir -p dist
-          # Copy and rename to 'bootstrap' for Lambda provided.al2023 runtime
-          cp target/x86_64-unknown-linux-musl/release/backend dist/bootstrap
+          # Copy and rename to 'bootstrap' for Lambda provided.al2023 runtime (cargo-lambda format)
+          cp target/lambda/backend/bootstrap dist/bootstrap
           echo "Backend build complete."
           ls -l dist/bootstrap
 

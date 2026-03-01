@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{Duration, Utc};
-use lambda_http::{Error, run, tracing};
+use lambda_http::{Error, run};
 use reqwest::Client as HttpClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -29,9 +29,13 @@ struct AppState {
     gemini_api_key: String,
 }
 
+use tracing_subscriber::{EnvFilter, fmt};
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
+        .init();
 
     let config = aws_config::load_from_env().await;
     let db_client = DynamoClient::new(&config);

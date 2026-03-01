@@ -34,7 +34,7 @@ export function TimeSelectView({ session, apiBase, onStartMenu }: TimeSelectView
                     'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`,
                 },
                 body: JSON.stringify({
-                    userId: session.getUsername(),
+                    userId: session.getIdToken().payload['cognito:username'],
                     bodyPart,
                 }),
             });
