@@ -61,45 +61,47 @@ export default function PerformanceGraph({ history, exerciseId, theme }: Perform
             <h3 className="text-sm font-black uppercase text-blue-500 mb-4 px-2">
                 {exerciseName} の推定1RM推移 (kg)
             </h3>
-            <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
-                        <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 10, fill: '#64748b' }}
-                            axisLine={false}
-                            tickLine={false}
-                        />
-                        <YAxis
-                            tick={{ fontSize: 10, fill: '#64748b' }}
-                            axisLine={false}
-                            tickLine={false}
-                            domain={['auto', 'auto']}
-                        />
-                        <Tooltip
-                            contentStyle={{
-                                backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff',
-                                border: 'none',
-                                borderRadius: '12px',
-                                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                                fontSize: '12px',
-                                color: theme === 'dark' ? '#f8fafc' : '#1e293b'
-                            }}
-                            itemStyle={{ fontWeight: 'bold', color: '#3b82f6' }}
-                        />
-                        <Line
-                            type="monotone"
-                            dataKey="oneRM"
-                            name="推定1RM"
-                            stroke="#3b82f6"
-                            strokeWidth={3}
-                            dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
-                            activeDot={{ r: 6, fill: '#2563eb' }}
-                            animationDuration={1500}
-                        />
-                    </LineChart>
-                </ResponsiveContainer>
+            <div className="min-h-[256px]"> {/* レイアウトのガクつき防止 */}
+                <div className="h-64 w-full relative"> {/* ResponsiveContainer のために relative を追加 */}
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
+                            <XAxis
+                                dataKey="date"
+                                tick={{ fontSize: 10, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <YAxis
+                                tick={{ fontSize: 10, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                domain={['auto', 'auto']}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                    fontSize: '12px',
+                                    color: theme === 'dark' ? '#f8fafc' : '#1e293b'
+                                }}
+                                itemStyle={{ fontWeight: 'bold', color: '#3b82f6' }}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="oneRM"
+                                name="推定1RM"
+                                stroke="#3b82f6"
+                                strokeWidth={3}
+                                dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
+                                activeDot={{ r: 6, fill: '#2563eb' }}
+                                animationDuration={1500}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );

@@ -22,7 +22,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
     // 全履歴を取得する
     useEffect(() => {
         const fetchFullHistory = async () => {
-            if (!session) return;
+            if (!session || history.length > 5) return; // すでにデータがある程度ある場合はスキップ（簡易ガード）
             setIsLoadingHistory(true);
             try {
                 const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/stats/history', {
@@ -35,7 +35,11 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                 });
                 if (response.ok) {
                     const data = await response.json();
-                    onUpdateHistory(data);
+                    // データが実際に異なる場合のみ更新するように上位で制御されていることを期待するか、
+                    // ここで簡易的な比較を行う。
+                    if (data && data.length !== history.length) {
+                        onUpdateHistory(data);
+                    }
                 }
             } catch (e) {
                 console.error('Failed to fetch full history', e);
@@ -45,7 +49,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         };
 
         fetchFullHistory();
-    }, [session, onUpdateHistory]);
+    }, [session]); // onUpdateHistory, history を依存配列から外すか、安定化させる。sessionが変わった時のみ実行。
 
     // AI長期分析を取得する
     const fetchAIAnalysis = async () => {
@@ -210,10 +214,10 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
             </div>
 
             {/* 総ボリューム推移 */}
-            <div>
+            <div className="min-h-[250px]"> {/* 高さの最小値を確保してガクつきを防止 */}
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-6 text-center">Total Volume History</p>
                 <div className={`p-4 rounded-3xl ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-white'} border ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
-                    <div className="h-48 w-full">
+                    <div className="h-48 w-full relative"> {/* relative を追加 */}
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={volumeData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
