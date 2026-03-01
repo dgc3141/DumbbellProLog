@@ -248,6 +248,11 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
                     >
                         Close Settings
                     </button>
+                    <div className="mt-8 pt-4 border-t border-slate-700/30">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                            Last Updated: {__BUILD_TIMESTAMP__}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
