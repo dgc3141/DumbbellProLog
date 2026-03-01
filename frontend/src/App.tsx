@@ -46,27 +46,27 @@ const Layout = ({
 
     {/* Header Buttons (Top Right) */}
     {session && !hideNav && (
-      <div className="fixed top-6 right-6 z-50 flex gap-2">
+      <div className="fixed top-4 right-4 z-[60] flex gap-1.5 sm:gap-2">
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
+          className="p-1.5 sm:p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
         >
-          {theme === 'dark' ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} />}
+          {theme === 'dark' ? <Sun size={16} className="text-yellow-400" /> : <Moon size={16} />}
         </button>
         <button
           onClick={() => setView('settings')}
-          className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
+          className="p-1.5 sm:p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
         >
-          <Settings size={18} />
+          <Settings size={16} />
         </button>
         <button
           onClick={() => {
             if (logout) logout();
             if (showToast) showToast('Logged out');
           }}
-          className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
+          className="p-1.5 sm:p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md text-slate-600 dark:text-slate-400 hover:text-red-500 transition-colors shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
         </button>
       </div>
     )}
@@ -130,7 +130,8 @@ export default function App() {
     fetchAIRecommendation, triggerMenuGeneration,
 
     startMenu, handleLog, finishRest, skipExercise, finishSession,
-    currentMenuExercise, totalSetsForCurrent, currentRestDuration
+    currentMenuExercise, totalSetsForCurrent, currentRestDuration,
+    restStartTime
   } = useWorkoutSession(session, vibrate, showToast);
 
 
@@ -273,12 +274,12 @@ export default function App() {
 
   return (
     <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
-      <header className="flex justify-between items-center mb-6">
+      <header className="flex justify-between items-start mb-6 pt-2 pr-28">
         <div>
-          <h1 className="text-xl font-black italic text-blue-500 uppercase">
-            {activeMenu.bodyPart.toUpperCase()} DAY
+          <h1 className="text-xl font-black italic text-blue-500 uppercase leading-none">
+            {activeMenu.bodyPart.toUpperCase()}
           </h1>
-          <p className="text-[10px] font-bold text-slate-500">{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</p>
+          <p className="text-[10px] font-bold text-slate-500 mt-1">{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</p>
         </div>
         <div className="text-right flex items-center gap-4">
           <div>
@@ -340,7 +341,7 @@ export default function App() {
       {/* Action Area */}
       <div className="min-h-[260px]">
         {isResting ? (
-          <RestTimer theme={theme} duration={currentRestDuration} onSkip={finishRest} onFinish={finishRest} />
+          <RestTimer theme={theme} duration={currentRestDuration} startTime={restStartTime} onSkip={finishRest} onFinish={finishRest} />
         ) : (
           <LoggingFlow
             theme={theme}
