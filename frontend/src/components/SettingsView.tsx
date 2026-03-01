@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CognitoIdentityProviderClient, StartWebAuthnRegistrationCommand, CompleteWebAuthnRegistrationCommand } from '@aws-sdk/client-cognito-identity-provider';
-import { ShieldCheck, Fingerprint, Loader2, CheckCircle2, XCircle, Sparkles, Bot } from 'lucide-react';
+import { ShieldCheck, Fingerprint, Loader2, CheckCircle2, XCircle, Sparkles, Bot, Bell, Volume2, VolumeX } from 'lucide-react';
+import { useNotifications } from '../hooks/useNotifications';
 import type { AIInfoResponse } from '../types';
 
 interface SettingsViewProps {
@@ -10,14 +11,15 @@ interface SettingsViewProps {
     onBack?: () => void;
 }
 
-type SettingsTab = 'security' | 'ai';
+type SettingsTab = 'security' | 'ai' | 'preferences';
 
 export default function SettingsView({ theme: _theme, session, apiBase, onBack }: SettingsViewProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    const [activeTab, setActiveTab] = useState<SettingsTab>('security');
+    const [activeTab, setActiveTab] = useState<SettingsTab>('preferences'); // Default to preferences for visibility
     const [aiInfo, setAiInfo] = useState<AIInfoResponse | null>(null);
     const [isAiInfoLoading, setIsAiInfoLoading] = useState(false);
+    const { permission, requestPermission, isVocalEnabled, setIsVocalEnabled } = useNotifications();
 
     const fetchAIInfo = useCallback(async () => {
         setIsAiInfoLoading(true);
@@ -112,10 +114,20 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
                 </div>
 
                 {/* Tab Switcher */}
-                <div className="flex gap-2 mb-8 bg-slate-800/50 rounded-2xl p-1">
+                <div className="flex gap-1.5 mb-8 bg-slate-800/50 rounded-2xl p-1 overflow-x-auto no-scrollbar">
+                    <button
+                        onClick={() => setActiveTab('preferences')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'preferences'
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'text-slate-400 hover:text-white'
+                            }`}
+                    >
+                        <Bell size={14} />
+                        Prefs
+                    </button>
                     <button
                         onClick={() => setActiveTab('security')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'security'
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'security'
                             ? 'bg-blue-600 text-white shadow-lg'
                             : 'text-slate-400 hover:text-white'
                             }`}
@@ -125,7 +137,7 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
                     </button>
                     <button
                         onClick={() => setActiveTab('ai')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'ai'
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'ai'
                             ? 'bg-blue-600 text-white shadow-lg'
                             : 'text-slate-400 hover:text-white'
                             }`}
@@ -134,6 +146,49 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
                         AI
                     </button>
                 </div>
+                {/* Preferences Tab */}
+                {activeTab === 'preferences' && (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        <div className="p-6 rounded-3xl bg-slate-800/50 border border-slate-700/50">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400">
+                                    <Bell size={24} />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-white text-sm">Notifications</h3>
+                                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-0.5">
+                                        Status: <span className={permission === 'granted' ? 'text-green-400' : 'text-orange-400'}>{permission.toUpperCase()}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {permission !== 'granted' && (
+                                <button
+                                    onClick={requestPermission}
+                                    className="w-full py-4 mb-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95"
+                                >
+                                    Enable System Alerts
+                                </button>
+                            )}
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/50 border border-slate-700/30">
+                                    <div className="flex items-center gap-3">
+                                        {isVocalEnabled ? <Volume2 size={18} className="text-blue-400" /> : <VolumeX size={18} className="text-slate-500" />}
+                                        <span className="text-xs font-bold text-slate-200">Voice Alerts (TTS)</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsVocalEnabled(!isVocalEnabled)}
+                                        className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${isVocalEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${isVocalEnabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-slate-500 px-2">Enable this to hear "Rest complete" announcements.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Security Tab */}
                 {activeTab === 'security' && (

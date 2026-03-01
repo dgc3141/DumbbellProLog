@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface RestTimerProps {
     theme?: 'light' | 'dark';
@@ -16,6 +17,7 @@ export default function RestTimer({ theme = 'dark', duration = 90, startTime, on
     }, [duration, startTime]);
 
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
+    const { notifyRestComplete } = useNotifications();
 
     const triggerNotification = useCallback(() => {
         // 1. Vibration (Pattern: 200ms on, 100ms off, 200ms on)
@@ -47,6 +49,7 @@ export default function RestTimer({ theme = 'dark', duration = 90, startTime, on
     useEffect(() => {
         if (timeLeft <= 0) {
             triggerNotification();
+            notifyRestComplete();
             onFinish();
             return;
         }
