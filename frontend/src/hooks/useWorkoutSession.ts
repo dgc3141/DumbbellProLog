@@ -47,7 +47,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
                 },
-                body: JSON.stringify({ user_id: session.getUsername() })
+                body: JSON.stringify({ user_id: session.getIdToken().payload['cognito:username'] })
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
 
@@ -72,7 +72,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
                 },
-                body: JSON.stringify({ user_id: session.getUsername() })
+                body: JSON.stringify({ user_id: session.getIdToken().payload['cognito:username'] })
             });
         } catch (e) {
             console.warn('Menu generation trigger failed (non-critical):', e);
@@ -100,7 +100,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         vibrate(50);
 
         const newSet: WorkoutSet = {
-            user_id: session.getUsername(),
+            user_id: session.getIdToken().payload['cognito:username'],
             timestamp: new Date().toISOString(),
             exercise_id: currentMenuExercise.exerciseName,
             weight,

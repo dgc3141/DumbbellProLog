@@ -18,8 +18,7 @@ describe('TimeSelectView', () => {
     const mockOnStartMenu = vi.fn();
     const mockApiBase = 'http://localhost:3000';
     const mockSession: CognitoSession = {
-        getIdToken: () => ({ getJwtToken: () => 'mock-token' }),
-        getUsername: () => 'testuser',
+        getIdToken: () => ({ getJwtToken: () => 'mock-token', payload: { 'cognito:username': 'testuser' } }),
     };
 
     it('renders body part options initially', () => {

@@ -15,15 +15,15 @@ cd ..
 echo "🦀 Building Backend (Rust)..."
 cd backend
 
-# Build standard release (Assumes Linux environment for Lambda compatibility)
-echo "Building for release..."
-cargo build --release
+# Build using cargo-lambda Docker image for AWS Lambda GLIBC compatibility
+echo "Building with cargo-lambda via Docker..."
+docker run --rm -v $(pwd)/..:/code -w /code/backend ghcr.io/cargo-lambda/cargo-lambda cargo lambda build --release --x86-64
 
 # Ensure dist directory exists
 mkdir -p dist
 
-# Copy binary as 'bootstrap' (Required for provided.al2 runtime)
-cp target/release/backend dist/bootstrap
+# Copy binary to dist (cargo-lambda puts it in target/lambda/<binary-name>/bootstrap)
+cp target/lambda/backend/bootstrap dist/bootstrap
 
 cd ..
 

@@ -31,7 +31,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
                     },
-                    body: JSON.stringify({ user_id: session.getUsername() })
+                    body: JSON.stringify({ user_id: session.getIdToken().payload['cognito:username'] })
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -58,7 +58,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                     'Content-Type': 'application/json',
                     'Authorization': session.getIdToken().getJwtToken()
                 },
-                body: JSON.stringify({ user_id: session.getUsername() })
+                body: JSON.stringify({ user_id: session.getIdToken().payload['cognito:username'] })
             });
             if (response.ok) {
                 const data = await response.json();

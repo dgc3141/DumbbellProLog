@@ -78,6 +78,9 @@ export interface GenerateMenusResponse {
 export interface CognitoSession {
     getIdToken: () => {
         getJwtToken: () => string;
+        payload: {
+            'cognito:username': string;
+            [key: string]: any;
+        };
     };
-    getUsername: () => string;
 }
