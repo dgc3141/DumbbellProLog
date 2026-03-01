@@ -3,17 +3,21 @@ import type { RpeLevel, WorkoutSet, AIRecommendation, EndlessMenu, CognitoSessio
 import { API_BASE } from '../config';
 
 export function useWorkoutSession(session: CognitoSession | null, vibrate: (pattern: number | number[]) => void, showToast: (msg: string, type?: 'success' | 'error') => void) {
-    // ローカルストレージから履歴を初期値として読み込む
-    const [history, setHistory] = useState<WorkoutSet[]>(() => {
+    const [history, setHistory] = useState<WorkoutSet[]>([]);
+    const [restStartTime, setRestStartTime] = useState<number | null>(null);
+
+    // 初期化
+    useEffect(() => {
         try {
             const saved = localStorage.getItem('workout_state_v3');
             if (saved) {
                 const state = JSON.parse(saved);
-                return state.history || [];
+                if (state.history) setHistory(state.history);
+                if (state.restStartTime) setRestStartTime(state.restStartTime);
+                if (state.isResting) setIsResting(state.isResting);
             }
         } catch (e) { console.error(e); }
-        return [];
-    });
+    }, []);
     const [activeMenu, setActiveMenu] = useState<EndlessMenu | null>(null);
     const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
     const [currentSet, setCurrentSet] = useState(1);
@@ -31,8 +35,12 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
     const [showAiModal, setShowAiModal] = useState(false);
 
     useEffect(() => {
-        localStorage.setItem('workout_state_v3', JSON.stringify({ history }));
-    }, [history]);
+        localStorage.setItem('workout_state_v3', JSON.stringify({
+            history,
+            restStartTime,
+            isResting
+        }));
+    }, [history, restStartTime, isResting]);
 
     const fetchAIRecommendation = useCallback(async () => {
         if (!session) return;
@@ -126,6 +134,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
 
             setHistory(prev => [...prev, newSet]);
             setTotalVolume((v: number) => v + weight * reps);
+            setRestStartTime(Date.now());
             setIsResting(true);
             vibrate([50, 30, 50]);
             showToast('Log Saved Successfully');
@@ -134,6 +143,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
             showToast('Sync Failed - Saved Locally', 'error');
             setHistory(prev => [...prev, newSet]);
             setTotalVolume((v: number) => v + weight * reps);
+            setRestStartTime(Date.now());
             setIsResting(true);
         } finally {
             clearTimeout(timeoutId);
@@ -144,6 +154,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
     const finishRest = useCallback(() => {
         if (!activeMenu) return;
         setIsResting(false);
+        setRestStartTime(null);
         if (currentSet < totalSetsForCurrent) {
             setCurrentSet((s: number) => s + 1);
         } else {
@@ -161,6 +172,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
     const skipExercise = useCallback(() => {
         if (!activeMenu) return;
         setIsResting(false);
+        setRestStartTime(null);
         if (currentExerciseIndex < activeMenu.exercises.length - 1) {
             const nextIdx = currentExerciseIndex + 1;
             setCurrentExerciseIndex(nextIdx);
@@ -190,6 +202,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         fetchAIRecommendation, triggerMenuGeneration,
 
         startMenu, handleLog, finishRest, skipExercise, finishSession,
-        currentMenuExercise, totalSetsForCurrent, currentRestDuration
+        currentMenuExercise, totalSetsForCurrent, currentRestDuration,
+        restStartTime
     };
 }

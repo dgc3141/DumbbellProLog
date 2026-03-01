@@ -3,12 +3,19 @@ import { useState, useEffect, useCallback } from 'react';
 interface RestTimerProps {
     theme?: 'light' | 'dark';
     duration?: number;
+    startTime?: number | null;
     onSkip: () => void;
     onFinish: () => void;
 }
 
-export default function RestTimer({ theme = 'dark', duration = 90, onSkip, onFinish }: RestTimerProps) {
-    const [timeLeft, setTimeLeft] = useState(duration);
+export default function RestTimer({ theme = 'dark', duration = 90, startTime, onSkip, onFinish }: RestTimerProps) {
+    const calculateTimeLeft = useCallback(() => {
+        if (!startTime) return duration;
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        return Math.max(0, duration - elapsed);
+    }, [duration, startTime]);
+
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
     const triggerNotification = useCallback(() => {
         // 1. Vibration (Pattern: 200ms on, 100ms off, 200ms on)
