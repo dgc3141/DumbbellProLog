@@ -130,6 +130,7 @@ export default function App() {
     fetchAIRecommendation, triggerMenuGeneration,
 
     startMenu, handleLog, finishRest, skipExercise, finishSession,
+    updateLog, deleteLog,
     currentMenuExercise, totalSetsForCurrent, currentRestDuration,
     restStartTime
   } = useWorkoutSession(session, vibrate, showToast);
@@ -214,6 +215,8 @@ export default function App() {
             theme={theme}
             session={session}
             onUpdateHistory={(newHistory) => setHistory(newHistory)}
+            onUpdateLog={updateLog}
+            onDeleteLog={deleteLog}
           />
         </div>
       </Layout>

@@ -10,7 +10,7 @@ use aws_sdk_dynamodb::{Client as DynamoClient, types::AttributeValue};
 use axum::{
     Router,
     extract::{Json, State},
-    routing::{get, post},
+    routing::{delete, get, patch, post},
 };
 use chrono::{Duration, Utc};
 use lambda_http::{Error, run};
@@ -57,6 +57,8 @@ async fn main() -> Result<(), Error> {
     let app = Router::new()
         .route("/", get(root))
         .route("/log", post(log_workout))
+        .route("/log", patch(update_workout_log))
+        .route("/log", delete(delete_workout_log))
         .route("/ai/recommend", post(get_ai_recommendation))
         .route("/ai/analyze-growth", post(analyze_growth))
         .route("/ai/generate-menus", post(trigger_menu_generation))
@@ -114,6 +116,62 @@ async fn log_workout(
 
     println!("Saved log to DynamoDB: {:?}", payload);
     Ok(Json(payload))
+}
+
+async fn update_workout_log(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<WorkoutSet>,
+) -> Result<Json<WorkoutSet>, (axum::http::StatusCode, String)> {
+    let mut item: std::collections::HashMap<String, AttributeValue> =
+        serde_dynamo::to_item(&payload).map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Serialization failed: {}", e),
+            )
+        })?;
+
+    item.insert("PK".to_string(), AttributeValue::S(payload.pk()));
+    item.insert("SK".to_string(), AttributeValue::S(payload.sk()));
+
+    state
+        .db_client
+        .put_item()
+        .table_name(&state.table_name)
+        .set_item(Some(item))
+        .send()
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB error: {}", e),
+            )
+        })?;
+
+    println!("Updated log in DynamoDB: {:?}", payload);
+    Ok(Json(payload))
+}
+
+async fn delete_workout_log(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<WorkoutSet>, // Identification by PK/SK
+) -> Result<axum::http::StatusCode, (axum::http::StatusCode, String)> {
+    state
+        .db_client
+        .delete_item()
+        .table_name(&state.table_name)
+        .key("PK", AttributeValue::S(payload.pk()))
+        .key("SK", AttributeValue::S(payload.sk()))
+        .send()
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DynamoDB error: {}", e),
+            )
+        })?;
+
+    println!("Deleted log from DynamoDB: {} - {}", payload.pk(), payload.sk());
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 /// AI推奨エンドポイント - 直近7日間のトレーニング履歴を分析して推奨値を返す
