@@ -76,7 +76,7 @@ async fn main() -> Result<(), Error> {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
         println!("Listening on http://{}", addr);
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, app).await.map_err(|e| Error::from(e))
+        axum::serve(listener, app).await.map_err(Error::from)
     }
 }
 
@@ -170,7 +170,11 @@ async fn delete_workout_log(
             )
         })?;
 
-    println!("Deleted log from DynamoDB: {} - {}", payload.pk(), payload.sk());
+    println!(
+        "Deleted log from DynamoDB: {} - {}",
+        payload.pk(),
+        payload.sk()
+    );
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 

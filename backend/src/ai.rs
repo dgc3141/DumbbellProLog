@@ -317,7 +317,6 @@ pub async fn generate_endless_menus(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::types::EndlessMenu;
 
     #[test]

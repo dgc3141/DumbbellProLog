@@ -53,7 +53,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         };
 
         fetchFullHistory();
-    }, [session]); // onUpdateHistory, history を依存配列から外すか、安定化させる。sessionが変わった時のみ実行。
+    }, [session, history.length, onUpdateHistory]);
 
     // AI長期分析を取得する
     const fetchAIAnalysis = async () => {
