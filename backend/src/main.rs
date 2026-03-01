@@ -102,8 +102,12 @@ async fn update_workout_log(
 
 async fn save_workout_set(
     state: &AppState,
-    payload: WorkoutSet,
+    mut payload: WorkoutSet,
 ) -> Result<Json<WorkoutSet>, (axum::http::StatusCode, String)> {
+    // Set TTL (expires_at) to 90 days from now
+    let expiration = Utc::now() + Duration::days(90);
+    payload.expires_at = Some(expiration.timestamp());
+
     // Ensure PK always uses the user_id from the payload (Defense-in-depth)
     // In a fully secured version, we would overwrite payload.user_id with the one from JWT.
     let mut item: std::collections::HashMap<String, AttributeValue> =
@@ -402,16 +406,20 @@ async fn get_full_history(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AIRecommendRequest>, // user_idを含む同じ構造体を使用
 ) -> Result<Json<Vec<WorkoutSet>>, (axum::http::StatusCode, String)> {
+    // 直近3ヶ月（90日）の履歴を取得
+    let ninety_days_ago = Utc::now() - Duration::days(90);
+    let ninety_days_ago_str = ninety_days_ago.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+
     let pk = format!("USER#{}", request.user_id);
-    let sk_prefix = "WORKOUT#";
+    let sk_start = format!("WORKOUT#{}", ninety_days_ago_str);
 
     let query_result = state
         .db_client
         .query()
         .table_name(&state.table_name)
-        .key_condition_expression("PK = :pk AND begins_with(SK, :sk_prefix)")
+        .key_condition_expression("PK = :pk AND SK >= :sk_start")
         .expression_attribute_values(":pk", AttributeValue::S(pk))
-        .expression_attribute_values(":sk_prefix", AttributeValue::S(sk_prefix.to_string()))
+        .expression_attribute_values(":sk_start", AttributeValue::S(sk_start))
         .send()
         .await
         .map_err(|e| {

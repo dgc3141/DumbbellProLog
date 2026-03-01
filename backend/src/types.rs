@@ -16,6 +16,8 @@ pub struct WorkoutSet {
     pub weight: f32,
     pub reps: u32,
     pub rpe: RpeLevel,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
 }
 
 impl WorkoutSet {
@@ -83,6 +85,7 @@ mod tests {
             weight: 20.0,
             reps: 10,
             rpe: RpeLevel::Just,
+            expires_at: None,
         };
 
         assert_eq!(set.pk(), "USER#test_user");

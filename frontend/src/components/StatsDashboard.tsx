@@ -7,6 +7,8 @@ import PerformanceGraph from './PerformanceGraph';
 import EditLogModal from './EditLogModal';
 import { EXERCISES } from '../routines';
 import { Skeleton } from './ui/Skeleton';
+import { API_BASE } from '../config';
+
 interface StatsDashboardProps {
     history: WorkoutSet[];
     theme: 'light' | 'dark';
@@ -29,7 +31,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
             if (!session || history.length > 5) return; // すでにデータがある程度ある場合はスキップ（簡易ガード）
             setIsLoadingHistory(true);
             try {
-                const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/stats/history', {
+                const response = await fetch(`${API_BASE}/stats/history`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -60,7 +62,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         if (!session || history.length === 0) return;
         setIsAnalyzing(true);
         try {
-            const response = await fetch('https://md80ui8pz1.execute-api.ap-northeast-1.amazonaws.com/ai/analyze-growth', {
+            const response = await fetch(`${API_BASE}/ai/analyze-growth`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -89,7 +91,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         return Object.entries(sessions)
             .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
             .map(([date, volume]) => ({ date, volume }))
-            .slice(-30); // グラフは最大30回分表示
+            .slice(-90); // グラフは最大90回分（約3ヶ月分）表示
     }, [history]);
 
     const chartColor = "#3b82f6";
