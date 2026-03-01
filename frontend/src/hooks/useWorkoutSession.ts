@@ -188,6 +188,50 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         setIsResting(false);
     }, []);
 
+    const updateLog = useCallback(async (updatedSet: WorkoutSet) => {
+        if (!session) return;
+        try {
+            const response = await fetch(`${API_BASE}/log`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
+                },
+                body: JSON.stringify(updatedSet)
+            });
+            if (!response.ok) throw new Error('Failed to update');
+
+            setHistory(prev => prev.map(item =>
+                (item.timestamp === updatedSet.timestamp) ? updatedSet : item
+            ));
+            showToast('Log Updated');
+        } catch (e) {
+            console.error(e);
+            showToast('Update Failed', 'error');
+        }
+    }, [session, showToast]);
+
+    const deleteLog = useCallback(async (setToDelete: WorkoutSet) => {
+        if (!session) return;
+        try {
+            const response = await fetch(`${API_BASE}/log`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
+                },
+                body: JSON.stringify(setToDelete)
+            });
+            if (!response.ok) throw new Error('Failed to delete');
+
+            setHistory(prev => prev.filter(item => item.timestamp !== setToDelete.timestamp));
+            showToast('Log Deleted');
+        } catch (e) {
+            console.error(e);
+            showToast('Delete Failed', 'error');
+        }
+    }, [session, showToast]);
+
     return {
         history, setHistory,
         activeMenu, setActiveMenu,
@@ -202,6 +246,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         fetchAIRecommendation, triggerMenuGeneration,
 
         startMenu, handleLog, finishRest, skipExercise, finishSession,
+        updateLog, deleteLog,
         currentMenuExercise, totalSetsForCurrent, currentRestDuration,
         restStartTime
     };

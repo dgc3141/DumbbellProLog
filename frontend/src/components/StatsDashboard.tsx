@@ -1,9 +1,10 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { Sparkles, AlertTriangle, Lightbulb } from 'lucide-react';
+import { Sparkles, AlertTriangle, Lightbulb, History, Edit2 } from 'lucide-react';
 import type { WorkoutSet, AIAnalysisResponse } from '../types';
 import PerformanceGraph from './PerformanceGraph';
+import EditLogModal from './EditLogModal';
 import { EXERCISES } from '../routines';
 import { Skeleton } from './ui/Skeleton';
 interface StatsDashboardProps {
@@ -11,13 +12,16 @@ interface StatsDashboardProps {
     theme: 'light' | 'dark';
     session: any;
     onUpdateHistory: (history: WorkoutSet[]) => void;
+    onUpdateLog: (updatedSet: WorkoutSet) => Promise<void>;
+    onDeleteLog: (setToDelete: WorkoutSet) => Promise<void>;
 }
 
-export default function StatsDashboard({ history, theme, session, onUpdateHistory }: StatsDashboardProps) {
+export default function StatsDashboard({ history, theme, session, onUpdateHistory, onUpdateLog, onDeleteLog }: StatsDashboardProps) {
     const [selectedExerciseId, setSelectedExerciseId] = useState<string>('db_bench_press');
     const [analysis, setAnalysis] = useState<AIAnalysisResponse | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [editingSet, setEditingSet] = useState<WorkoutSet | null>(null);
 
     // 全履歴を取得する
     useEffect(() => {
@@ -49,7 +53,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         };
 
         fetchFullHistory();
-    }, [session]); // onUpdateHistory, history を依存配列から外すか、安定化させる。sessionが変わった時のみ実行。
+    }, [session, history.length, onUpdateHistory]);
 
     // AI長期分析を取得する
     const fetchAIAnalysis = async () => {
@@ -233,6 +237,48 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
                     </div>
                 </div>
             </div>
+
+            {/* Workout History List */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-2 px-2">
+                    <History size={18} className="text-slate-500" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Workout History</p>
+                </div>
+                <div className="space-y-3">
+                    {history.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 50).map((set) => (
+                        <div key={set.timestamp} className={`p-4 rounded-2xl flex items-center justify-between border ${theme === 'dark' ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">
+                                    {new Date(set.timestamp).toLocaleDateString()}
+                                </span>
+                                <span className="text-sm font-bold text-slate-200">
+                                    {EXERCISES[set.exercise_id]?.name || set.exercise_id}
+                                </span>
+                                <span className="text-[10px] text-blue-400 font-black uppercase mt-0.5">
+                                    {set.weight}kg x {set.reps} ({set.rpe})
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => setEditingSet(set)}
+                                className={`p-3 rounded-xl transition-all ${theme === 'dark' ? 'bg-slate-700/50 text-slate-400 hover:text-white' : 'bg-white text-slate-500 hover:text-blue-500 shadow-sm'}`}
+                            >
+                                <Edit2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Edit Modal */}
+            {editingSet && (
+                <EditLogModal
+                    set={editingSet}
+                    theme={theme}
+                    onSave={onUpdateLog}
+                    onDelete={onDeleteLog}
+                    onClose={() => setEditingSet(null)}
+                />
+            )}
         </div>
     );
 }

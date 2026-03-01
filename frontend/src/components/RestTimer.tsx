@@ -59,7 +59,7 @@ export default function RestTimer({ theme = 'dark', duration = 90, startTime, on
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [timeLeft, onFinish, triggerNotification]);
+    }, [timeLeft, triggerNotification, notifyRestComplete, onFinish]);
 
     const progress = (timeLeft / duration) * 100;
 
