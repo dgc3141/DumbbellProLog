@@ -85,4 +85,52 @@ describe('TimeSelectView', () => {
             expect(mockOnStartMenu).toHaveBeenCalledWith(mockMenus[0]);
         });
     });
+
+    it('renders spot training section and options', () => {
+        render(
+            <TimeSelectView
+                session={mockSession}
+                apiBase={mockApiBase}
+                onStartMenu={mockOnStartMenu}
+            />
+        );
+
+        // Header and Sets label
+        expect(screen.getByText('Spot Training')).toBeInTheDocument();
+        expect(screen.getByText('Target Sets')).toBeInTheDocument();
+
+        // Spot exercises
+        expect(screen.getByText('サイド・レイズ')).toBeInTheDocument();
+        expect(screen.getByText('ハンマー・カール')).toBeInTheDocument();
+        expect(screen.getByText('カーフレイズ')).toBeInTheDocument();
+    });
+
+    it('creates an instant spot menu when a spot exercise is clicked', async () => {
+        render(
+            <TimeSelectView
+                session={mockSession}
+                apiBase={mockApiBase}
+                onStartMenu={mockOnStartMenu}
+            />
+        );
+
+        // Click on Hammer Curl
+        fireEvent.click(screen.getByText('ハンマー・カール'));
+
+        await waitFor(() => {
+            expect(mockOnStartMenu).toHaveBeenCalledWith(expect.objectContaining({
+                bodyPart: 'pull',
+                exercises: expect.arrayContaining([
+                    expect.objectContaining({
+                        exerciseName: 'ハンマー・カール',
+                        sets: 2, // default sets
+                        reps: 12,
+                        recommendedWeight: 12,
+                        restSeconds: 60,
+                        notes: '前腕を固定'
+                    })
+                ])
+            }));
+        });
+    });
 });
