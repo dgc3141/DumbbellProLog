@@ -1,61 +1,46 @@
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { Sparkles, AlertTriangle, Lightbulb, History, Edit2 } from 'lucide-react';
-import type { WorkoutSet, AIAnalysisResponse } from '../types';
+import { Sparkles, AlertTriangle, Lightbulb, History, Edit2, Dumbbell, Layers, Trophy } from 'lucide-react';
+import type { WorkoutSet, AIAnalysisResponse, CognitoSession } from '../types';
 import PerformanceGraph from './PerformanceGraph';
 import EditLogModal from './EditLogModal';
 import { EXERCISES } from '../routines';
 import { Skeleton } from './ui/Skeleton';
 import { API_BASE } from '../config';
+import { useStatsHistory } from '../hooks';
 
 interface StatsDashboardProps {
-    history: WorkoutSet[];
     theme: 'light' | 'dark';
-    session: any;
-    onUpdateHistory: (history: WorkoutSet[]) => void;
+    session: CognitoSession | null;
     onUpdateLog: (updatedSet: WorkoutSet) => Promise<void>;
     onDeleteLog: (setToDelete: WorkoutSet) => Promise<void>;
 }
 
-export default function StatsDashboard({ history, theme, session, onUpdateHistory, onUpdateLog, onDeleteLog }: StatsDashboardProps) {
+interface SummaryCardProps {
+    icon: React.ReactNode;
+    label: string;
+    value: string | number;
+    theme: 'light' | 'dark';
+}
+
+function SummaryCard({ icon, label, value, theme }: SummaryCardProps) {
+    return (
+        <div className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl flex-1 ${theme === 'dark' ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-white border border-slate-200 shadow-sm'}`}>
+            <div className="text-blue-500">{icon}</div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">{label}</p>
+            <p className="text-xl font-black">{value}</p>
+        </div>
+    );
+}
+
+export function StatsDashboard({ theme, session, onUpdateLog, onDeleteLog }: StatsDashboardProps) {
     const [selectedExerciseId, setSelectedExerciseId] = useState<string>('db_bench_press');
     const [analysis, setAnalysis] = useState<AIAnalysisResponse | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [editingSet, setEditingSet] = useState<WorkoutSet | null>(null);
 
-    // 全履歴を取得する
-    useEffect(() => {
-        const fetchFullHistory = async () => {
-            if (!session || history.length > 5) return; // すでにデータがある程度ある場合はスキップ（簡易ガード）
-            setIsLoadingHistory(true);
-            try {
-                const response = await fetch(`${API_BASE}/stats/history`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
-                    },
-                    body: JSON.stringify({ user_id: session.getIdToken().payload['cognito:username'] })
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    // データが実際に異なる場合のみ更新するように上位で制御されていることを期待するか、
-                    // ここで簡易的な比較を行う。
-                    if (data && data.length !== history.length) {
-                        onUpdateHistory(data);
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to fetch full history', e);
-            } finally {
-                setIsLoadingHistory(false);
-            }
-        };
-
-        fetchFullHistory();
-    }, [session, history.length, onUpdateHistory]);
+    const { history, isFetching, error } = useStatsHistory(session);
 
     // AI長期分析を取得する
     const fetchAIAnalysis = async () => {
@@ -81,7 +66,7 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         }
     };
 
-    // 総ボリューム推移
+    // 総ボリューム推移（日付ごと）
     const volumeData = useMemo(() => {
         const sessions: Record<string, number> = {};
         history.forEach(set => {
@@ -90,19 +75,40 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         });
         return Object.entries(sessions)
             .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
-            .map(([date, volume]) => ({ date, volume }))
-            .slice(-90); // グラフは最大90回分（約3ヶ月分）表示
+            .map(([date, volume]) => ({ date, volume }));
+    }, [history]);
+
+    // サマリー集計
+    const summary = useMemo(() => {
+        // セッション数 = ユニーク日付数
+        const uniqueDates = new Set(history.map(set => new Date(set.timestamp).toDateString()));
+        const totalWorkouts = uniqueDates.size;
+        const totalSets = history.length;
+
+        // 最も多く行った種目
+        const exerciseCounts: Record<string, number> = {};
+        history.forEach(set => {
+            exerciseCounts[set.exercise_id] = (exerciseCounts[set.exercise_id] || 0) + 1;
+        });
+        const topExerciseId = Object.entries(exerciseCounts)
+            .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+        const topExerciseName = topExerciseId
+            ? (EXERCISES[topExerciseId]?.name ?? topExerciseId)
+            : '-';
+
+        return { totalWorkouts, totalSets, topExerciseName };
     }, [history]);
 
     const chartColor = "#3b82f6";
     const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
 
-    if (isLoadingHistory) {
+    if (isFetching) {
         return (
             <div className="space-y-10 py-10">
-                <div className="flex flex-col items-center gap-4">
-                    <Skeleton className="h-4 w-32" theme={theme} />
-                    <Skeleton className="h-12 w-64 rounded-2xl" theme={theme} />
+                <div className="flex gap-3">
+                    <Skeleton className="h-24 flex-1 rounded-2xl" theme={theme} />
+                    <Skeleton className="h-24 flex-1 rounded-2xl" theme={theme} />
+                    <Skeleton className="h-24 flex-1 rounded-2xl" theme={theme} />
                 </div>
                 <div>
                     <Skeleton className="h-4 w-48 mb-6 mx-auto" theme={theme} />
@@ -112,7 +118,16 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         );
     }
 
-    if (history.length === 0 && !isLoadingHistory) {
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 opacity-60">
+                <p className="text-sm font-black uppercase tracking-widest text-red-400">Failed to Load History</p>
+                <p className="text-[10px] text-slate-500 mt-1">{error}</p>
+            </div>
+        );
+    }
+
+    if (history.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-20 opacity-50">
                 <p className="text-sm font-black uppercase tracking-widest">No Data Available Yet</p>
@@ -123,6 +138,31 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* サマリーカード */}
+            <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-4 text-center">Last 3 Months</p>
+                <div className="flex gap-3">
+                    <SummaryCard
+                        icon={<Dumbbell size={18} />}
+                        label="Workouts"
+                        value={summary.totalWorkouts}
+                        theme={theme}
+                    />
+                    <SummaryCard
+                        icon={<Layers size={18} />}
+                        label="Total Sets"
+                        value={summary.totalSets}
+                        theme={theme}
+                    />
+                    <SummaryCard
+                        icon={<Trophy size={18} />}
+                        label="Top Exercise"
+                        value={summary.topExerciseName}
+                        theme={theme}
+                    />
+                </div>
+            </div>
+
             {/* 種目選択フィルター */}
             <div className="flex flex-col items-center">
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-4">Select Exercise</p>
@@ -220,10 +260,10 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
             </div>
 
             {/* 総ボリューム推移 */}
-            <div className="min-h-[250px]"> {/* 高さの最小値を確保してガクつきを防止 */}
+            <div className="min-h-[250px]">
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-6 text-center">Total Volume History</p>
                 <div className={`p-4 rounded-3xl ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-white'} border ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
-                    <div className="h-48 w-full relative"> {/* relative を追加 */}
+                    <div className="h-48 w-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={volumeData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
@@ -284,3 +324,5 @@ export default function StatsDashboard({ history, theme, session, onUpdateHistor
         </div>
     );
 }
+
+export default StatsDashboard;
