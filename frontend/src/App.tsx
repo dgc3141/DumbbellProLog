@@ -275,15 +275,15 @@ export default function App() {
 
   return (
     <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
-      <header className="flex justify-between items-start mb-6 pt-2 pr-28">
+      <header className="w-full flex flex-wrap justify-between items-end gap-y-4 mb-6 pt-12">
         <div>
           <h1 className="text-xl font-black italic text-blue-500 uppercase leading-none">
             {activeMenu.bodyPart.toUpperCase()}
           </h1>
           <p className="text-[10px] font-bold text-slate-500 mt-1">{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase()}</p>
         </div>
-        <div className="text-right flex items-center gap-4">
-          <div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
             <p className="text-[10px] font-bold text-slate-500 uppercase">Current Vol</p>
             <p className="text-lg font-black text-blue-400">{totalVolume.toLocaleString()} <span className="text-[10px]">KG</span></p>
           </div>
