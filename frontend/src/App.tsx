@@ -275,7 +275,7 @@ export default function App() {
 
   return (
     <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
-      <header className="w-full flex justify-between items-end mb-6 pt-12">
+      <header className="w-full flex flex-wrap justify-between items-end gap-y-4 mb-6 pt-12">
         <div>
           <h1 className="text-xl font-black italic text-blue-500 uppercase leading-none">
             {activeMenu.bodyPart.toUpperCase()}
