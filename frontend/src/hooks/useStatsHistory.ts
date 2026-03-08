@@ -15,7 +15,10 @@ export function useStatsHistory(session: CognitoSession | null): UseStatsHistory
     const [error, setError] = useState<string | null>(null);
 
     const fetchHistory = useCallback(async () => {
-        if (!session) return;
+        if (!session) {
+            setHistory([]);
+            return;
+        }
         setIsFetching(true);
         setError(null);
         try {
@@ -33,6 +36,7 @@ export function useStatsHistory(session: CognitoSession | null): UseStatsHistory
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : '履歴の取得に失敗しました';
             setError(msg);
+            setHistory([]); // エラー時に古いデータが残らないようクリア
         } finally {
             setIsFetching(false);
         }
