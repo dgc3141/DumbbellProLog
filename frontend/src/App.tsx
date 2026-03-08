@@ -117,7 +117,7 @@ export default function App() {
 
   const { session, setSession, isAuthLoading, logout } = useAuth();
   const {
-    history, setHistory,
+    history,
     activeMenu, setActiveMenu,
     currentExerciseIndex, currentSet,
     isResting,
@@ -211,10 +211,8 @@ export default function App() {
         </header>
         <div className="glass-card p-6 rounded-[2.5rem] border border-slate-700/50">
           <StatsDashboard
-            history={history}
             theme={theme}
             session={session}
-            onUpdateHistory={(newHistory) => setHistory(newHistory)}
             onUpdateLog={updateLog}
             onDeleteLog={deleteLog}
           />
