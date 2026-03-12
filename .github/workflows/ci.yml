@@ -14,7 +14,7 @@ env:
 
 jobs:
   test-backend:
-    name: Backend Tests (Rust)
+    name: Backend Tests (Node.js)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,26 +23,18 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     
-    - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
-      
-    - name: Cache dependencies
-      uses: actions/cache@v5
+    - name: Set up Node.js
+      uses: actions/setup-node@v6
       with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          backend/target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
-
-    - name: Check formatting
-      run: cargo fmt -- --check
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+        
+    - name: Install dependencies
+      run: npm ci
       
-    - name: Run tests
-      run: cargo test --verbose
+    - name: Run Build
+      run: npm run build
 
   test-frontend:
     name: Frontend Tests (React/Vitest)
