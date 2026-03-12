@@ -127,7 +127,7 @@ export class InfraStack extends cdk.Stack {
     // We will use a makefile or just copy it there manually for now.
     // Actually, let's point to a 'dist' folder we will instruct the user to create.
     const backendFunction = new lambda.Function(this, 'BackendFunction', {
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: new lambda.Runtime('nodejs24.x'),
       handler: 'index.handler', // Node.js Express binaries in Lambda
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: {
