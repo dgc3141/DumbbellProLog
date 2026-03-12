@@ -42,8 +42,10 @@ DumbbellProLog/
 ### 準備
 - AWS CLI が設定されていること
 - Node.js / npm
-- Rust (`cargo`)
-- `cdk` CLI
+- Node.js (v24+)
+- npm / pnpm
+- AWS CLI & CDK (v2)
+- Google Gemini API Key (for AI features)h
 
 ### デプロイ方法
 プロジェクト配下で一括ビルドスクリプトを実行します。
