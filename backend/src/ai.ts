@@ -4,7 +4,11 @@ import { z } from 'zod';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is missing.');
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('GEMINI_API_KEY environment variable is missing.');
+    } else {
+        console.warn('GEMINI_API_KEY environment variable is missing. AI features will fail.');
+    }
 }
 const GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-1.5-flash-latest';
 
