@@ -123,9 +123,7 @@ export class InfraStack extends cdk.Stack {
     // ========================================================================
     // 3. Backend (Lambda + API Gateway)
     // ========================================================================
-    // Assumes the Rust binary is built and located at ../backend/target/lambda/backend
-    // We will use a makefile or just copy it there manually for now.
-    // Actually, let's point to a 'dist' folder we will instruct the user to create.
+    // Node.js Express backend, compiled to dist/index.js via esbuild.
     const backendFunction = new lambda.Function(this, 'BackendFunction', {
       runtime: new lambda.Runtime('nodejs24.x'),
       handler: 'index.handler', // Node.js Express binaries in Lambda
