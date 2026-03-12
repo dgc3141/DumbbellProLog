@@ -1,0 +1,264 @@
+openapi: 3.0.0
+info:
+  title: Dumbbell Pro Log API
+  description: バックエンド API 仕様書 (AWS Lambda + Express)
+  version: 1.0.0
+servers:
+  - url: https://api.dumbbellprolog.example.com
+    description: Production Server
+
+components:
+  securitySchemes:
+    CognitoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Amazon Cognito ID Token を Authorization ヘッダーに `Bearer <ID_TOKEN>` 形式で含めます。
+
+  schemas:
+    RpeLevel:
+      type: string
+      enum: [easy, just, limit]
+
+    WorkoutSet:
+      type: object
+      required: [timestamp, exercise_id, weight, reps, rpe]
+      properties:
+        user_id:
+          type: string
+          readOnly: true
+        timestamp:
+          type: string
+          format: date-time
+        exercise_id:
+          type: string
+        weight:
+          type: number
+        reps:
+          type: integer
+        rpe:
+          $ref: '#/components/schemas/RpeLevel'
+
+    ExerciseRecommendation:
+      type: object
+      properties:
+        exercise_id:
+          type: string
+        recommended_weight:
+          type: number
+        recommended_reps:
+          type: integer
+        comment:
+          type: string
+
+    AIRecommendation:
+      type: object
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseRecommendation'
+        general_advice:
+          type: string
+
+    AIAnalysisResponse:
+      type: object
+      properties:
+        insights:
+          type: array
+          items:
+            type: string
+        plateau_warnings:
+          type: array
+          items:
+            type: string
+        encouragement:
+          type: string
+
+    MenuExercise:
+      type: object
+      properties:
+        exerciseName:
+          type: string
+        sets:
+          type: integer
+        reps:
+          type: integer
+        recommendedWeight:
+          type: number
+        restSeconds:
+          type: integer
+        notes:
+          type: string
+
+    EndlessMenu:
+      type: object
+      properties:
+        bodyPart:
+          type: string
+          enum: [push, pull, legs]
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuExercise'
+        generatedAt:
+          type: string
+          format: date-time
+
+    AIInfoResponse:
+      type: object
+      properties:
+        modelName:
+          type: string
+        provider:
+          type: string
+        modelId:
+          type: string
+
+    GenerateMenusResponse:
+      type: object
+      properties:
+        menus:
+          type: array
+          items:
+            $ref: '#/components/schemas/EndlessMenu'
+        generatedCount:
+          type: integer
+
+security:
+  - CognitoAuth: []
+
+paths:
+  /:
+    get:
+      summary: ヘルスチェック
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Dumbbell Pro Log Backend (Node.js) is Running!
+
+  /log:
+    post:
+      summary: ワークアウト記録の保存
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkoutSet'
+      responses:
+        '200':
+          description: 保存成功
+    patch:
+      summary: ワークアウト記録の更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkoutSet'
+      responses:
+        '200':
+          description: 更新成功
+    delete:
+      summary: ワークアウト記録の削除
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timestamp]
+              properties:
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '204':
+          description: 削除成功
+
+  /ai/recommend:
+    post:
+      summary: トレーニング推奨の取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIRecommendation'
+
+  /ai/analyze-growth:
+    post:
+      summary: 成長分析の取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIAnalysisResponse'
+
+  /ai/info:
+    get:
+      summary: AI モデル情報の取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIInfoResponse'
+
+  /ai/generate-menus:
+    post:
+      summary: エンドレスモード用メニューの生成
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateMenusResponse'
+
+  /menus/by-body-part:
+    post:
+      summary: 保存済みメニューの取得
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bodyPart]
+              properties:
+                bodyPart:
+                  type: string
+                  enum: [push, pull, legs]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EndlessMenu'
+
+  /stats/history:
+    post:
+      summary: ワークアウト履歴 (90日間) の取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkoutSet'
