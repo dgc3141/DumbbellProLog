@@ -35,7 +35,8 @@ jobs:
           cd backend
           npm ci
           npm run build
-          echo "Backend build complete."
+          npm test
+          echo "Backend build and tests complete."
           ls -l dist/index.js
 
       # ------------------------------------------------------------------
