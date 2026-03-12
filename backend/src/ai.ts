@@ -1,7 +1,49 @@
 import { WorkoutSet, AIRecommendation, AIAnalysisResponse, EndlessMenu } from './types';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-3.0-flash';
+import { z } from 'zod';
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY environment variable is missing.');
+}
+const GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-1.5-flash-latest';
+
+// --- Zod Schemas ---
+
+const ExerciseRecommendationSchema = z.object({
+    exercise_id: z.string(),
+    recommended_weight: z.number(),
+    recommended_reps: z.number(),
+    comment: z.string()
+});
+
+const AIRecommendationSchema = z.object({
+    recommendations: z.array(ExerciseRecommendationSchema),
+    general_advice: z.string()
+});
+
+const AIAnalysisResponseSchema = z.object({
+    insights: z.array(z.string()),
+    plateau_warnings: z.array(z.string()),
+    encouragement: z.string()
+});
+
+const MenuExerciseSchema = z.object({
+    exerciseName: z.string(),
+    sets: z.number(),
+    reps: z.number(),
+    recommendedWeight: z.number(),
+    restSeconds: z.number(),
+    notes: z.string()
+});
+
+const EndlessMenuSchema = z.object({
+    bodyPart: z.string(),
+    exercises: z.array(MenuExerciseSchema),
+    generatedAt: z.string()
+});
+
+const EndlessMenusArraySchema = z.array(EndlessMenuSchema);
 
 async function callGemini(prompt: string): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`;
@@ -73,7 +115,13 @@ ${historyJson}
 }`;
 
     const text = await callGemini(prompt);
-    return JSON.parse(text) as AIRecommendation;
+    
+    try {
+        const parsedJson = JSON.parse(text);
+        return AIRecommendationSchema.parse(parsedJson) as AIRecommendation;
+    } catch (e: any) {
+        throw new Error(`Failed to parse AI response: ${e.message}`);
+    }
 }
 
 export async function getGrowthAnalysis(workoutHistory: WorkoutSet[]): Promise<AIAnalysisResponse> {
@@ -106,7 +154,13 @@ ${historyJson}
 }`;
 
     const text = await callGemini(prompt);
-    return JSON.parse(text) as AIAnalysisResponse;
+    
+    try {
+        const parsedJson = JSON.parse(text);
+        return AIAnalysisResponseSchema.parse(parsedJson) as AIAnalysisResponse;
+    } catch (e: any) {
+        throw new Error(`Failed to parse AI response: ${e.message}`);
+    }
 }
 
 export async function generateEndlessMenus(workoutHistory: WorkoutSet[]): Promise<EndlessMenu[]> {
@@ -148,5 +202,11 @@ ${historySummary}
 合計3パターン（push, pull, legs）を配列で返してください。`;
 
     const text = await callGemini(prompt);
-    return JSON.parse(text) as EndlessMenu[];
+    
+    try {
+        const parsedJson = JSON.parse(text);
+        return EndlessMenusArraySchema.parse(parsedJson) as EndlessMenu[];
+    } catch (e: any) {
+        throw new Error(`Failed to parse Menu response: ${e.message}`);
+    }
 }

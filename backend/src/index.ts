@@ -25,50 +25,76 @@ app.get('/', (req, res) => {
     res.send('Dumbbell Pro Log Backend (Node.js) is Running!');
 });
 
+// Middleware to extract user ID from Cognito Authorizer claims (or fallback for local auth)
+const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+        let userId: string | undefined;
+
+        // serverless-http attaches API Gateway event object to req.apiGateway
+        const apiGateway = (req as any).apiGateway;
+        
+        if (apiGateway && apiGateway.event && apiGateway.event.requestContext && apiGateway.event.requestContext.authorizer) {
+            const claims = apiGateway.event.requestContext.authorizer.jwt?.claims;
+            userId = claims?.['cognito:username'] || claims?.username || claims?.sub;
+        }
+
+        // Fallback for local development or manual header injection if needed
+        if (!userId && process.env.NODE_ENV !== 'production') {
+            const authHeader = req.headers.authorization;
+            // Extremely simplified fallback for testing purpose only
+            if (authHeader && authHeader.startsWith('Bearer test-')) {
+                userId = authHeader.replace('Bearer test-', '');
+            } else {
+                // To keep backward compatibility locally where userId was coming from body
+                userId = req.body.userId || req.body.user_id;
+            }
+        }
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized: Unable to verify user identity.' });
+            return;
+        }
+
+        // Attach verified user ID to the request
+        (req as any).verifiedUserId = userId;
+        next();
+    } catch (e: any) {
+        res.status(401).json({ error: `Unauthorized: ${e.message}` });
+    }
+};
+
+app.use(requireAuth); // Apply authentication to all routes below
+
 // --- Workout Logging ---
 
-app.post('/log', async (req, res) => {
+const handleWorkoutLog = async (req: express.Request, res: express.Response) => {
     try {
         const payload: WorkoutSet = req.body;
+        // IDOR Mitigation: Overwrite payload user_id with the verified authenticated ID
+        payload.user_id = (req as any).verifiedUserId;
+        
         const result = await saveWorkoutRecord(payload);
         res.json(result);
     } catch (error: any) {
         console.error(error);
         res.status(500).json({ error: error.message });
     }
-});
+};
 
-app.patch('/log', async (req, res) => {
-    try {
-        const payload: WorkoutSet = req.body;
-        const result = await saveWorkoutRecord(payload);
-        res.json(result);
-    } catch (error: any) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
-});
+app.post('/log', handleWorkoutLog);
+app.patch('/log', handleWorkoutLog);
 
 app.delete('/log', async (req, res) => {
     try {
-        // payload can just be an object with PK, SK or user_id, timestamp
-        // Rust version used WorkoutSet which had pk() and sk()
-        // Here we just extract user_id and timestamp
-        const { user_id, timestamp } = req.body;
-        if (!user_id || !timestamp) {
-            // Check if PK/SK were sent directly instead
-            const pk = req.body.PK;
-            const sk = req.body.SK;
-            if (pk && sk) {
-                const uid = pk.replace('USER#', '');
-                const ts = sk.replace('WORKOUT#', '');
-                await deleteWorkoutRecord(uid, ts);
-            } else {
-                throw new Error("Missing user_id or timestamp.");
-            }
-        } else {
-            await deleteWorkoutRecord(user_id, timestamp);
+        const verifiedUserId = (req as any).verifiedUserId;
+        const timestamp = req.body.timestamp || req.body.SK?.replace('WORKOUT#', '');
+        
+        if (!timestamp) {
+            res.status(400).json({ error: "Missing timestamp for deletion." });
+            return;
         }
+        
+        await deleteWorkoutRecord(verifiedUserId, timestamp);
         res.status(204).send();
     } catch (error: any) {
         console.error(error);
@@ -80,14 +106,13 @@ app.delete('/log', async (req, res) => {
 
 app.post('/ai/recommend', async (req, res) => {
     try {
-        const { userId } = req.body;
-        const user_id = userId || req.body.user_id;
-
+        const verifiedUserId = (req as any).verifiedUserId;
+        
         // 7 days ago
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        const history = await getWorkoutsSince(user_id, sevenDaysAgo);
-
-        console.log(`Found ${history.length} workout records for user ${user_id}`);
+        const history = await getWorkoutsSince(verifiedUserId, sevenDaysAgo);
+        
+        console.log(`Found ${history.length} workout records for user ${verifiedUserId}`);
         const recommendation = await getTrainingRecommendation(history);
 
         res.json(recommendation);
@@ -99,10 +124,9 @@ app.post('/ai/recommend', async (req, res) => {
 
 app.post('/ai/analyze-growth', async (req, res) => {
     try {
-        const { userId } = req.body;
-        const user_id = userId || req.body.user_id;
-
-        const history = await getAllWorkouts(user_id);
+        const verifiedUserId = (req as any).verifiedUserId;
+        
+        const history = await getAllWorkouts(verifiedUserId);
         const analysis = await getGrowthAnalysis(history);
 
         res.json(analysis);
@@ -122,13 +146,12 @@ app.get('/ai/info', (req, res) => {
 
 app.post('/ai/generate-menus', async (req, res) => {
     try {
-        const { userId } = req.body;
-        const user_id = userId || req.body.user_id;
+        const verifiedUserId = (req as any).verifiedUserId;
 
-        const history = await getRecentWorkouts(user_id, 50);
+        const history = await getRecentWorkouts(verifiedUserId, 50);
         const menus = await generateEndlessMenus(history);
 
-        await saveMenus(user_id, menus);
+        await saveMenus(verifiedUserId, menus);
 
         res.json({
             menus,
@@ -144,12 +167,13 @@ app.post('/ai/generate-menus', async (req, res) => {
 
 app.post('/menus/by-body-part', async (req, res) => {
     try {
-        const { userId, bodyPart } = req.body;
-        const user_id = userId || req.body.user_id;
-        const body_part = bodyPart || req.body.body_part;
+        const verifiedUserId = (req as any).verifiedUserId;
+        const body_part = req.body.bodyPart || req.body.body_part;
 
-        const menus = await getMenuByBodyPart(user_id, body_part);
-        res.json(menus);
+        const menus = await getMenuByBodyPart(verifiedUserId, body_part);
+        
+        // Ensure an array is returned even if undefined is returned by db to maintain backwards compatibility
+        res.json(menus ? [menus] : []);
     } catch (error: any) {
         console.error(error);
         res.status(500).json({ error: error.message });
@@ -160,12 +184,11 @@ app.post('/menus/by-body-part', async (req, res) => {
 
 app.post('/stats/history', async (req, res) => {
     try {
-        const { userId } = req.body;
-        const user_id = userId || req.body.user_id;
+        const verifiedUserId = (req as any).verifiedUserId;
 
         // Last 90 days
         const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-        const history = await getWorkoutsSince(user_id, ninetyDaysAgo);
+        const history = await getWorkoutsSince(verifiedUserId, ninetyDaysAgo);
 
         res.json(history);
     } catch (error: any) {

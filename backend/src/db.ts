@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, DeleteCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, DeleteCommand, QueryCommand, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { WorkoutSet, EndlessMenu } from "./types";
 
 const client = new DynamoDBClient({});
@@ -100,24 +100,31 @@ export async function getAllWorkouts(userId: string): Promise<WorkoutSet[]> {
 // --- Menu records ---
 
 export async function saveMenus(userId: string, menus: EndlessMenu[]): Promise<void> {
+    if (menus.length === 0) return;
+
     const pk = `USER#${userId}`;
+    const putRequests = menus.map(menu => ({
+        PutRequest: {
+            Item: {
+                ...menu,
+                PK: pk,
+                SK: `MENU#${menu.bodyPart}`
+            }
+        }
+    }));
 
-    for (const menu of menus) {
-        const sk = `MENU#${menu.bodyPart}`;
-        const item = {
-            ...menu,
-            PK: pk,
-            SK: sk
-        };
-
-        await docClient.send(new PutCommand({
-            TableName: TABLE_NAME,
-            Item: item
+    // DynamoDB BatchWriteItem 制限（最大25件）に対応
+    for (let i = 0; i < putRequests.length; i += 25) {
+        const batch = putRequests.slice(i, i + 25);
+        await docClient.send(new BatchWriteCommand({
+            RequestItems: {
+                [TABLE_NAME]: batch
+            }
         }));
     }
 }
 
-export async function getMenuByBodyPart(userId: string, bodyPart: string): Promise<EndlessMenu[]> {
+export async function getMenuByBodyPart(userId: string, bodyPart: string): Promise<EndlessMenu | undefined> {
     const pk = `USER#${userId}`;
     const sk = `MENU#${bodyPart}`;
 
@@ -130,5 +137,5 @@ export async function getMenuByBodyPart(userId: string, bodyPart: string): Promi
         }
     }));
 
-    return (result.Items || []) as EndlessMenu[];
+    return result.Items?.[0] as EndlessMenu | undefined;
 }
