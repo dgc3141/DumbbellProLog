@@ -1,4 +1,4 @@
-import { WorkoutSet, AIRecommendation, AIAnalysisResponse, EndlessMenu } from './types';
+import { WorkoutSet, AIRecommendation, AIAnalysisResponse, EndlessMenu, ChatMessage, ChatBuddyResponse, MagicLogResult } from './types';
 
 import { z } from 'zod';
 
@@ -48,6 +48,18 @@ const EndlessMenuSchema = z.object({
 });
 
 const EndlessMenusArraySchema = z.array(EndlessMenuSchema);
+
+const MagicLogResultSchema = z.object({
+    weight: z.number().optional(),
+    reps: z.number().optional(),
+    rpe: z.enum(['easy', 'just', 'limit']).optional(),
+    success: z.boolean(),
+    error_msg: z.string().optional()
+});
+
+const ChatBuddyResponseSchema = z.object({
+    reply: z.string()
+});
 
 async function callGemini(prompt: string): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`;
@@ -212,5 +224,71 @@ ${historySummary}
         return EndlessMenusArraySchema.parse(parsedJson) as EndlessMenu[];
     } catch (e: any) {
         throw new Error(`Failed to parse Menu response: ${e.message}`);
+    }
+}
+
+// --- Dynamic AI Rest Coach ---
+
+export async function getRestCoachMessage(exercise: string, weight: number, reps: number, rpe: string): Promise<string> {
+    const prompt = `あなたはパーソナルトレーナーです。ユーザーは今、「${exercise}」を${weight}kgで${reps}回行いました。手応えは「${rpe} (easy=余裕, just=適切, limit=限界)」でした。
+現在インターバル休憩中です。
+次のセットに向けて、簡潔でモチベーションの上がる一言アドバイスを日本語で50文字以内で提供してください。JSONではなく平文で返してください。`;
+
+    return await callGemini(prompt);
+}
+
+// --- Magic Log Parser ---
+
+export async function parseMagicLog(userInput: string): Promise<MagicLogResult> {
+    const prompt = `あなたはフィットネスアプリの音声/テキスト入力パーサーです。
+ユーザーの発話: 「${userInput}」
+
+発話から重量(weight)、回数(reps)、RPE(余裕=easy, ちょうどよい=just, 限界=limit) を抽出してください。
+抽出できない場合は success: false を返してください。
+
+以下のJSON形式のみで返してください：
+{
+  "weight": 20,
+  "reps": 10,
+  "rpe": "easy",
+  "success": true,
+  "error_msg": "エラーがあれば記載"
+}`;
+
+    const text = await callGemini(prompt);
+    
+    try {
+        const parsedJson = JSON.parse(text);
+        return MagicLogResultSchema.parse(parsedJson) as MagicLogResult;
+    } catch (e: any) {
+        return { success: false, error_msg: "パースに失敗しました" };
+    }
+}
+
+// --- AI Gym Buddy Chat ---
+
+export async function chatWithBuddy(userHistorySummary: string, chatHistory: ChatMessage[], newMessage: string): Promise<ChatBuddyResponse> {
+    const systemPrompt = `あなたは専属のAIトレーニングバディ（コーチ）です。
+親しみやすく、かつ専門的なアドバイスを簡潔に回答してください。
+
+## ユーザーの最近のトレーニング状況：
+${userHistorySummary}
+
+出力形式：
+以下のJSON形式のみで返してください。
+{
+  "reply": "ユーザーへの回答テキスト"
+}`;
+
+    let historyText = chatHistory.map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');
+    let prompt = `${systemPrompt}\n\n## 会話履歴\n${historyText}\n\nUser: ${newMessage}\nJSONで返答：`;
+
+    const text = await callGemini(prompt);
+    
+    try {
+        const parsedJson = JSON.parse(text);
+        return ChatBuddyResponseSchema.parse(parsedJson) as ChatBuddyResponse;
+    } catch (e: any) {
+        return { reply: "ごめんなさい、ちょっと聞き取れませんでした。もう一度お願いします！" };
     }
 }

@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
+import type { WorkoutSet, CognitoSession } from '../types';
+import { API_BASE } from '../config';
 
 interface RestTimerProps {
     theme?: 'light' | 'dark';
     duration?: number;
     startTime?: number | null;
+    session?: CognitoSession | null;
+    lastSet?: WorkoutSet | null;
     onSkip: () => void;
     onFinish: () => void;
 }
 
-export default function RestTimer({ theme = 'dark', duration = 90, startTime, onSkip, onFinish }: RestTimerProps) {
+export default function RestTimer({ theme = 'dark', duration = 90, startTime, session, lastSet, onSkip, onFinish }: RestTimerProps) {
     const calculateTimeLeft = useCallback(() => {
         if (!startTime) return duration;
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -18,6 +22,34 @@ export default function RestTimer({ theme = 'dark', duration = 90, startTime, on
 
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
     const { notifyRestComplete } = useNotifications();
+
+    const [tip, setTip] = useState<string | null>(null);
+    const [isLoadingTip, setIsLoadingTip] = useState(false);
+
+    useEffect(() => {
+        if (session && lastSet && startTime) {
+            setIsLoadingTip(true);
+            fetch(`${API_BASE}/ai/rest-coach`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
+                },
+                body: JSON.stringify({
+                    exercise: lastSet.exercise_id,
+                    weight: lastSet.weight,
+                    reps: lastSet.reps,
+                    rpe: lastSet.rpe
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.message) setTip(data.message);
+            })
+            .catch(e => console.error("Failed to fetch AI tip:", e))
+            .finally(() => setIsLoadingTip(false));
+        }
+    }, [session, lastSet, startTime]);
 
     const triggerNotification = useCallback(() => {
         // 1. Vibration (Pattern: 200ms on, 100ms off, 200ms on)
@@ -69,11 +101,26 @@ export default function RestTimer({ theme = 'dark', duration = 90, startTime, on
                 <p className={`text-[10px] font-black uppercase tracking-[0.5em] mb-2 ${theme === 'dark' ? 'text-blue-100/60' : 'text-white/80'}`}>Resting Time</p>
                 <div className="text-8xl font-black tracking-tighter mb-6">{timeLeft}</div>
 
-                <div className={`w-full h-2 rounded-full mb-8 overflow-hidden ${theme === 'dark' ? 'bg-white/20' : 'bg-black/10'}`}>
+                <div className={`w-full h-2 rounded-full mb-6 overflow-hidden ${theme === 'dark' ? 'bg-white/20' : 'bg-black/10'}`}>
                     <div
                         className="bg-white h-full transition-all duration-1000 linear"
                         style={{ width: `${progress}%` }}
                     ></div>
+                </div>
+
+                {/* AI Rest Tip Bubble */}
+                <div className="min-h-[60px] mb-6 flex items-center justify-center">
+                    {isLoadingTip ? (
+                        <div className="flex gap-1 items-center">
+                            <div className="w-1.5 h-1.5 bg-white/50 rounded-full animate-bounce"></div>
+                            <div className="w-1.5 h-1.5 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-1.5 h-1.5 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                    ) : tip ? (
+                        <div className={`text-xs font-bold px-4 py-3 rounded-2xl animate-in fade-in slide-in-from-bottom-2 ${theme === 'dark' ? 'bg-white/10 text-blue-50' : 'bg-white/20 text-white'}`}>
+                            ✨ {tip}
+                        </div>
+                    ) : null}
                 </div>
 
                 <button

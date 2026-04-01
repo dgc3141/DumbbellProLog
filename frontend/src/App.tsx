@@ -9,7 +9,8 @@ import AIRecommendView from './components/AIRecommendView';
 import { TimeSelectView } from './components/TimeSelectView';
 import { SkipReasonModal } from './components/SkipReasonModal';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
-import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut, Sparkles } from 'lucide-react';
+import ChatDrawer from './components/ChatDrawer';
+import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut, Sparkles, Bot } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Skeleton } from './components/ui/Skeleton';
 import { useAuth, useWorkoutSession } from './hooks';
@@ -116,6 +117,7 @@ export default function App() {
   const [experiencedExercises, setExperiencedExercises] = useState<Set<string>>(new Set());
   const [showSkipModal, setShowSkipModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -396,12 +398,13 @@ export default function App() {
       {/* Action Area */}
       <div className="min-h-[260px]">
         {isResting ? (
-          <RestTimer theme={theme} duration={currentRestDuration} startTime={restStartTime} onSkip={finishRest} onFinish={finishRest} />
+          <RestTimer theme={theme} duration={currentRestDuration} startTime={restStartTime} onSkip={finishRest} onFinish={finishRest} session={session} lastSet={lastSet} />
         ) : (
           <LoggingFlow
             theme={theme}
             reps={selectedRepsMap[currentMenuExercise?.exerciseName || ''] || (currentMenuExercise?.reps || 10)}
             isLoading={isLoading}
+            session={session}
             onRepsChange={(reps: number) => setSelectedRepsMap(prev => ({ ...prev, [currentMenuExercise?.exerciseName || '']: reps }))}
             onLog={handleLog}
           />
@@ -441,6 +444,23 @@ export default function App() {
         apiBase={API_BASE}
         onClose={() => setShowDetailModal(false)}
       />
+
+      {/* AI Chat FAB */}
+      <button 
+        onClick={() => setIsChatOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-40"
+      >
+        <Bot size={24} />
+      </button>
+
+      {/* AI Chat Drawer */}
+      {isChatOpen && (
+        <ChatDrawer 
+          theme={theme}
+          session={session}
+          onClose={() => setIsChatOpen(false)}
+        />
+      )}
     </Layout>
   );
 }
