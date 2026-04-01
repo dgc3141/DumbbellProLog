@@ -6,6 +6,8 @@ import type { AIInfoResponse } from '../types';
 
 interface SettingsViewProps {
     theme: 'light' | 'dark';
+    gymMode: boolean;
+    onToggleGymMode: () => void;
     session: any;
     apiBase: string;
     onBack?: () => void;
@@ -13,7 +15,7 @@ interface SettingsViewProps {
 
 type SettingsTab = 'security' | 'ai' | 'preferences';
 
-export default function SettingsView({ theme: _theme, session, apiBase, onBack }: SettingsViewProps) {
+export default function SettingsView({ theme: _theme, gymMode, onToggleGymMode, session, apiBase, onBack }: SettingsViewProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [activeTab, setActiveTab] = useState<SettingsTab>('preferences'); // Default to preferences for visibility
@@ -185,6 +187,22 @@ export default function SettingsView({ theme: _theme, session, apiBase, onBack }
                                     </button>
                                 </div>
                                 <p className="text-[10px] text-slate-500 px-2">Enable this to hear "Rest complete" announcements.</p>
+
+                                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/50 border border-slate-700/30 mt-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${gymMode ? 'bg-[#152232] text-white' : 'bg-slate-800 text-slate-400'} border border-slate-700/50`}>
+                                            <Sparkles size={14} />
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-200">Gym Mode</span>
+                                    </div>
+                                    <button
+                                        onClick={onToggleGymMode}
+                                        className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${gymMode ? 'bg-blue-600' : 'bg-slate-700'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${gymMode ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-slate-500 px-2">High contrast dark mode optimized for dim gym environments.</p>
                             </div>
                         </div>
                     </div>
