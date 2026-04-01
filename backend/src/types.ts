@@ -8,6 +8,15 @@ export interface WorkoutSet {
     reps: number;
     rpe: RpeLevel;
     expires_at?: number; // DynamoDB TTL
+    is_skipped?: boolean;
+    skip_reason?: string;
+}
+
+export interface ExerciseMeta {
+    user_id: string;
+    exercise_id: string;
+    tips?: string;
+    video_url?: string;
 }
 
 export interface Exercise {

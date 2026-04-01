@@ -11,6 +11,8 @@ vi.mock('../db', () => ({
     getAllWorkouts: vi.fn().mockResolvedValue([]),
     saveMenus: vi.fn().mockResolvedValue(undefined),
     getMenuByBodyPart: vi.fn().mockResolvedValue(undefined),
+    saveExerciseMeta: vi.fn().mockResolvedValue({ user_id: 'user1', exercise_id: 'bench', tips: 'Keep tight', video_url: 'https://youtube.com' }),
+    getExerciseMeta: vi.fn().mockResolvedValue(undefined),
     TABLE_NAME: 'DumbbellProLog',
     TTL_DURATION_SECONDS: 7776000,
 }));
@@ -139,6 +141,49 @@ describe('IDOR Protection - DELETE /log', () => {
 
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/timestamp/i);
+    });
+});
+
+describe('Exercise Meta API', () => {
+    it('should return default meta when no data exists (200)', async () => {
+        const { getExerciseMeta } = await import('../db');
+        vi.mocked(getExerciseMeta).mockResolvedValueOnce(undefined);
+
+        const res = await request(app)
+            .get('/meta/exercise/Bench%20Press')
+            .set(authHeader('user-alice'));
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+            user_id: 'user-alice',
+            exercise_id: 'Bench Press',
+            tips: '',
+            video_url: ''
+        });
+    });
+
+    it('should save exercise meta successfully (200)', async () => {
+        const { saveExerciseMeta } = await import('../db');
+        const payload = {
+            tips: 'Retract scapula',
+            video_url: 'https://youtube.com/test'
+        };
+        vi.mocked(saveExerciseMeta).mockResolvedValueOnce({
+            user_id: 'user-alice',
+            exercise_id: 'Bench Press',
+            ...payload
+        });
+
+        const res = await request(app)
+            .post('/meta/exercise/Bench%20Press')
+            .set(authHeader('user-alice'))
+            .send(payload);
+
+        expect(res.status).toBe(200);
+        const callArgs = vi.mocked(saveExerciseMeta).mock.calls.at(-1)?.[0];
+        expect(callArgs?.user_id).toBe('user-alice');
+        expect(callArgs?.exercise_id).toBe('Bench Press');
+        expect(callArgs?.tips).toBe(payload.tips);
     });
 });
 

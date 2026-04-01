@@ -8,7 +8,9 @@ import {
     getRecentWorkouts,
     getAllWorkouts,
     saveMenus,
-    getMenuByBodyPart
+    getMenuByBodyPart,
+    saveExerciseMeta,
+    getExerciseMeta
 } from './db';
 import {
     getTrainingRecommendation,
@@ -192,6 +194,42 @@ app.post('/menus/by-body-part', async (req, res) => {
         
         // Ensure an array is returned even if undefined is returned by db to maintain backwards compatibility
         res.json(menus ? [menus] : []);
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- Exercise Meta ---
+
+app.get('/meta/exercise/:name', async (req, res) => {
+    try {
+        const verifiedUserId = (req as any).verifiedUserId;
+        const exerciseName = req.params.name;
+        
+        const meta = await getExerciseMeta(verifiedUserId, exerciseName);
+        res.json(meta || { user_id: verifiedUserId, exercise_id: exerciseName, tips: '', video_url: '' });
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/meta/exercise/:name', async (req, res) => {
+    try {
+        const verifiedUserId = (req as any).verifiedUserId;
+        const exerciseName = req.params.name;
+        const { tips, video_url } = req.body;
+
+        const payload = {
+            user_id: verifiedUserId,
+            exercise_id: exerciseName,
+            tips,
+            video_url
+        };
+
+        const result = await saveExerciseMeta(payload);
+        res.json(result);
     } catch (error: any) {
         console.error(error);
         res.status(500).json({ error: error.message });
