@@ -296,9 +296,15 @@ export function StatsDashboard({ theme, session, onUpdateLog, onDeleteLog }: Sta
                                 <span className="text-sm font-bold text-slate-200">
                                     {EXERCISES[set.exercise_id]?.name || set.exercise_id}
                                 </span>
-                                <span className="text-[10px] text-blue-400 font-black uppercase mt-0.5">
-                                    {set.weight}kg x {set.reps} ({set.rpe})
-                                </span>
+                                {set.is_skipped ? (
+                                    <span className="text-[10px] text-orange-400 font-black uppercase mt-0.5 italic">
+                                        SKIPPED: {set.skip_reason || 'Other'}
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] text-blue-400 font-black uppercase mt-0.5">
+                                        {set.weight}kg x {set.reps} ({set.rpe})
+                                    </span>
+                                )}
                             </div>
                             <button
                                 onClick={() => setEditingSet(set)}

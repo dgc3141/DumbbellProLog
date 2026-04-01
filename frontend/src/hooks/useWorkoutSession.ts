@@ -169,19 +169,57 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         }
     }, [activeMenu, currentExerciseIndex, currentSet, totalSetsForCurrent]);
 
-    const skipExercise = useCallback(() => {
-        if (!activeMenu) return;
-        setIsResting(false);
-        setRestStartTime(null);
-        if (currentExerciseIndex < activeMenu.exercises.length - 1) {
-            const nextIdx = currentExerciseIndex + 1;
-            setCurrentExerciseIndex(nextIdx);
-            setCurrentSet(1);
-            setWeight(activeMenu.exercises[nextIdx].recommendedWeight);
-        } else {
-            setIsSessionComplete(true);
+    const handleSkip = useCallback(async (reason: string) => {
+        if (!activeMenu || !session || !currentMenuExercise) return;
+        setIsLoading(true);
+
+        const newSet: WorkoutSet = {
+            user_id: session.getIdToken().payload['cognito:username'],
+            timestamp: new Date().toISOString(),
+            exercise_id: currentMenuExercise.exerciseName,
+            weight: 0,
+            reps: 0,
+            rpe: 'easy',
+            is_skipped: true,
+            skip_reason: reason
+        };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        try {
+            await fetch(`${API_BASE}/log`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
+                },
+                body: JSON.stringify(newSet),
+                signal: controller.signal
+            });
+            setHistory(prev => [...prev, newSet]);
+            showToast(`Skipped: ${reason}`);
+        } catch (e) {
+            console.warn('Sync Failed - Skipped locally', e);
+            setHistory(prev => [...prev, newSet]);
+            showToast(`Skipped: ${reason} (Offline)`, 'error');
+        } finally {
+            clearTimeout(timeoutId);
+            setIsLoading(false);
+            
+            // Advance to next exercise
+            setIsResting(false);
+            setRestStartTime(null);
+            if (currentExerciseIndex < activeMenu.exercises.length - 1) {
+                const nextIdx = currentExerciseIndex + 1;
+                setCurrentExerciseIndex(nextIdx);
+                setCurrentSet(1);
+                setWeight(activeMenu.exercises[nextIdx].recommendedWeight);
+            } else {
+                setIsSessionComplete(true);
+            }
         }
-    }, [activeMenu, currentExerciseIndex]);
+    }, [activeMenu, currentMenuExercise, currentExerciseIndex, session, showToast]);
 
     const finishSession = useCallback(() => {
         setIsSessionComplete(true);
@@ -245,7 +283,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
         aiRecommendation, isAiLoading, aiError, showAiModal, setShowAiModal,
         fetchAIRecommendation, triggerMenuGeneration,
 
-        startMenu, handleLog, finishRest, skipExercise, finishSession,
+        startMenu, handleLog, finishRest, handleSkip, finishSession,
         updateLog, deleteLog,
         currentMenuExercise, totalSetsForCurrent, currentRestDuration,
         restStartTime

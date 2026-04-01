@@ -7,11 +7,14 @@ import LoginView from './components/LoginView';
 import SettingsView from './components/SettingsView';
 import AIRecommendView from './components/AIRecommendView';
 import { TimeSelectView } from './components/TimeSelectView';
-import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut } from 'lucide-react';
+import { SkipReasonModal } from './components/SkipReasonModal';
+import { ExerciseDetailModal } from './components/ExerciseDetailModal';
+import { LayoutGrid, BarChart2, CheckCircle2, Moon, Sun, Settings, LogOut, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Skeleton } from './components/ui/Skeleton';
 import { useAuth, useWorkoutSession } from './hooks';
 import { API_BASE } from './config';
+import type { WorkoutSet } from './types';
 
 const Layout = ({
   children,
@@ -109,6 +112,11 @@ export default function App() {
   const [view, setView] = useState<'time_select' | 'training' | 'stats' | 'settings'>('time_select');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // New features state
+  const [experiencedExercises, setExperiencedExercises] = useState<Set<string>>(new Set());
+  const [showSkipModal, setShowSkipModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -134,12 +142,30 @@ export default function App() {
     aiRecommendation, isAiLoading, aiError, showAiModal, setShowAiModal,
     fetchAIRecommendation, triggerMenuGeneration,
 
-    startMenu, handleLog, finishRest, skipExercise, finishSession,
+    startMenu, handleLog, finishRest, handleSkip, finishSession,
     updateLog, deleteLog,
     currentMenuExercise, totalSetsForCurrent, currentRestDuration,
     restStartTime
   } = useWorkoutSession(session, vibrate, showToast);
 
+  // Fetch experienced exercises for NEW badge
+  useEffect(() => {
+    if (session) {
+      fetch(`${API_BASE}/stats/history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
+        }
+      })
+      .then(res => res.json())
+      .then((data: WorkoutSet[]) => {
+        const uniqueExercises = new Set(data.map(d => d.exercise_id));
+        setExperiencedExercises(uniqueExercises);
+      })
+      .catch(e => console.error("Failed to load history for NEW badge:", e));
+    }
+  }, [session]);
 
   useEffect(() => {
     localStorage.setItem('app_theme', theme);
@@ -312,16 +338,31 @@ export default function App() {
       {/* Exercise Card */}
       <div className="glass-card rounded-[2.5rem] p-7 border border-slate-700/50 shadow-2xl relative mb-6">
         <div className="flex justify-between items-start mb-2">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-black leading-tight">{currentMenuExercise?.exerciseName}</h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button 
+              onClick={() => setShowDetailModal(true)}
+              className="text-xl font-black leading-tight text-left hover:text-blue-500 transition-colors active:scale-95 flex items-center gap-2"
+            >
+              {currentMenuExercise?.exerciseName}
+              <span className="p-1 bg-slate-200 dark:bg-slate-700 rounded-full text-slate-500 dark:text-slate-400">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              </span>
+            </button>
+            {currentMenuExercise?.exerciseName && !experiencedExercises.has(currentMenuExercise.exerciseName) && (
+              <span className="flex items-center gap-1 bg-gradient-to-r from-orange-400 to-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-lg animate-pulse">
+                <Sparkles size={10} /> NEW
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{activeMenu.exercises.length}</span>
             <button
-              onClick={skipExercise}
+              onClick={() => setShowSkipModal(true)}
               className="px-3 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-400 text-[10px] font-black rounded-lg transition-colors"
             >
               SKIP
             </button>
           </div>
-          <span className="bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full">{currentExerciseIndex + 1}/{activeMenu.exercises.length}</span>
         </div>
         <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest italic mb-6">{currentMenuExercise?.notes}</p>
 
@@ -377,6 +418,29 @@ export default function App() {
           theme={theme}
         />
       )}
+
+      {/* スキップ理由モーダル */}
+      {showSkipModal && (
+        <SkipReasonModal 
+          theme={theme}
+          onCancel={() => setShowSkipModal(false)}
+          onSelect={reason => {
+            setShowSkipModal(false);
+            handleSkip(reason);
+          }}
+        />
+      )}
+
+      {/* 種目詳細・メモ モーダル */}
+      <ExerciseDetailModal 
+        isOpen={showDetailModal}
+        exerciseName={currentMenuExercise?.exerciseName || ''}
+        theme={theme}
+        gymMode={gymMode}
+        session={session}
+        apiBase={API_BASE}
+        onClose={() => setShowDetailModal(false)}
+      />
     </Layout>
   );
 }

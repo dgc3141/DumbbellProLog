@@ -1,6 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, DeleteCommand, QueryCommand, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
-import { WorkoutSet, EndlessMenu } from "./types";
+import { DynamoDBDocumentClient, PutCommand, DeleteCommand, QueryCommand, BatchWriteCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { WorkoutSet, EndlessMenu, ExerciseMeta } from "./types";
 
 const client = new DynamoDBClient({});
 export const docClient = DynamoDBDocumentClient.from(client);
@@ -143,4 +143,39 @@ export async function getMenuByBodyPart(userId: string, bodyPart: string): Promi
     }));
 
     return result.Items?.[0] as EndlessMenu | undefined;
+}
+
+// --- Exercise Meta records (Tips, Video URLs) ---
+
+export async function saveExerciseMeta(payload: ExerciseMeta): Promise<ExerciseMeta> {
+    const pk = `USER#${payload.user_id}`;
+    const sk = `EXERCISEMETA#${payload.exercise_id}`;
+
+    const item = {
+        ...payload,
+        PK: pk,
+        SK: sk
+    };
+
+    await docClient.send(new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item
+    }));
+
+    return payload;
+}
+
+export async function getExerciseMeta(userId: string, exerciseId: string): Promise<ExerciseMeta | undefined> {
+    const pk = `USER#${userId}`;
+    const sk = `EXERCISEMETA#${exerciseId}`;
+
+    const result = await docClient.send(new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+            PK: pk,
+            SK: sk
+        }
+    }));
+
+    return result.Item as ExerciseMeta | undefined;
 }
