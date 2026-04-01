@@ -15,7 +15,10 @@ import {
 import {
     getTrainingRecommendation,
     getGrowthAnalysis,
-    generateEndlessMenus
+    generateEndlessMenus,
+    getRestCoachMessage,
+    parseMagicLog,
+    chatWithBuddy
 } from './ai';
 import { WorkoutSet } from './types';
 
@@ -150,6 +153,45 @@ app.post('/ai/analyze-growth', async (req, res) => {
         const analysis = await getGrowthAnalysis(history);
 
         res.json(analysis);
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/ai/rest-coach', async (req, res) => {
+    try {
+        const { exercise, weight, reps, rpe } = req.body;
+        const message = await getRestCoachMessage(exercise, weight, reps, rpe);
+        res.json({ message });
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/ai/parse-log', async (req, res) => {
+    try {
+        const { userInput } = req.body;
+        const result = await parseMagicLog(userInput);
+        res.json(result);
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/ai/chat', async (req, res) => {
+    try {
+        const verifiedUserId = (req as any).verifiedUserId;
+        const { chatHistory, message } = req.body;
+
+        // Fetch recent history for context
+        const history = await getRecentWorkouts(verifiedUserId, 30);
+        const userHistorySummary = history.length === 0 ? "履歴なし" : JSON.stringify(history);
+
+        const response = await chatWithBuddy(userHistorySummary, chatHistory || [], message);
+        res.json(response);
     } catch (error: any) {
         console.error(error);
         res.status(500).json({ error: error.message });

@@ -22,6 +22,9 @@ vi.mock('../ai', () => ({
     getTrainingRecommendation: vi.fn().mockResolvedValue({ recommendation: 'test' }),
     getGrowthAnalysis: vi.fn().mockResolvedValue({ analysis: 'test' }),
     generateEndlessMenus: vi.fn().mockResolvedValue([]),
+    getRestCoachMessage: vi.fn().mockResolvedValue("test rest message"),
+    parseMagicLog: vi.fn().mockResolvedValue({ success: true, weight: 20, reps: 10, rpe: 'easy' }),
+    chatWithBuddy: vi.fn().mockResolvedValue({ reply: "test chat reply" }),
 }));
 
 let app: Express;

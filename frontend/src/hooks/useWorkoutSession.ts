@@ -101,8 +101,11 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
     const totalSetsForCurrent = currentMenuExercise?.sets || 3;
     const currentRestDuration = currentMenuExercise?.restSeconds || 90;
 
-    const handleLog = useCallback(async (reps: number, rpe: RpeLevel) => {
+    const handleLog = useCallback(async (reps: number, rpe: RpeLevel, overrideWeight?: number) => {
         if (!currentMenuExercise || isLoading || !session) return;
+
+        const actualWeight = overrideWeight !== undefined ? overrideWeight : weight;
+        if (overrideWeight !== undefined) setWeight(overrideWeight);
 
         setIsLoading(true);
         vibrate(50);
@@ -111,7 +114,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
             user_id: session.getIdToken().payload['cognito:username'],
             timestamp: new Date().toISOString(),
             exercise_id: currentMenuExercise.exerciseName,
-            weight,
+            weight: actualWeight,
             reps,
             rpe
         };
@@ -133,7 +136,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
             if (!response.ok) throw new Error('Failed to save');
 
             setHistory(prev => [...prev, newSet]);
-            setTotalVolume((v: number) => v + weight * reps);
+            setTotalVolume((v: number) => v + actualWeight * reps);
             setRestStartTime(Date.now());
             setIsResting(true);
             vibrate([50, 30, 50]);
@@ -142,7 +145,7 @@ export function useWorkoutSession(session: CognitoSession | null, vibrate: (patt
             console.warn(e);
             showToast('Sync Failed - Saved Locally', 'error');
             setHistory(prev => [...prev, newSet]);
-            setTotalVolume((v: number) => v + weight * reps);
+            setTotalVolume((v: number) => v + actualWeight * reps);
             setRestStartTime(Date.now());
             setIsResting(true);
         } finally {

@@ -84,3 +84,22 @@ export interface GenerateMenusResponse {
     menus: EndlessMenu[];
     generatedCount: number;
 }
+
+// --- 新規AI機能用 (Chat & NLP) ---
+
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface ChatBuddyResponse {
+    reply: string;
+}
+
+export interface MagicLogResult {
+    weight?: number;
+    reps?: number;
+    rpe?: RpeLevel;
+    success: boolean;
+    error_msg?: string;
+}
