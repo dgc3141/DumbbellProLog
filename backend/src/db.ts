@@ -8,11 +8,13 @@ export const docClient = DynamoDBDocumentClient.from(client);
 // テーブル名は環境変数から取得
 export const TABLE_NAME = process.env.TABLE_NAME || "DumbbellProLog";
 
+// TTL duration (90 days)
+export const TTL_DURATION_SECONDS = 90 * 24 * 60 * 60;
+
 // --- Workout records ---
 
 export async function saveWorkoutRecord(payload: WorkoutSet): Promise<WorkoutSet> {
-    // 90日後の有効期限(TTL)を設定
-    const expiresAt = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+    const expiresAt = Math.floor(Date.now() / 1000) + TTL_DURATION_SECONDS;
 
     const pk = `USER#${payload.user_id}`;
     const sk = `WORKOUT#${payload.timestamp}`;
@@ -103,12 +105,15 @@ export async function saveMenus(userId: string, menus: EndlessMenu[]): Promise<v
     if (menus.length === 0) return;
 
     const pk = `USER#${userId}`;
+    const expiresAt = Math.floor(Date.now() / 1000) + TTL_DURATION_SECONDS;
+
     const putRequests = menus.map(menu => ({
         PutRequest: {
             Item: {
                 ...menu,
                 PK: pk,
-                SK: `MENU#${menu.bodyPart}`
+                SK: `MENU#${menu.bodyPart}`,
+                expires_at: expiresAt
             }
         }
     }));
