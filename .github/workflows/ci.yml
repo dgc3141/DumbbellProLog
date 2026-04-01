@@ -12,10 +12,15 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   test-backend:
     name: Backend Tests (Node.js)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ./backend
@@ -42,6 +47,7 @@ jobs:
   test-frontend:
     name: Frontend Tests (React/Vitest)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ./frontend
