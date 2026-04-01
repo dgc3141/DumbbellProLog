@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     env: {
       GEMINI_API_KEY: 'test-key',
+      TABLE_NAME: 'DumbbellProLog',
     },
   },
 });

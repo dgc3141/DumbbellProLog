@@ -69,10 +69,19 @@ app.use(requireAuth); // Apply authentication to all routes below
 
 const handleWorkoutLog = async (req: express.Request, res: express.Response) => {
     try {
+        const verifiedUserId: string = (req as any).verifiedUserId;
         const payload: WorkoutSet = req.body;
-        // IDOR Mitigation: Overwrite payload user_id with the verified authenticated ID
-        payload.user_id = (req as any).verifiedUserId;
-        
+
+        // IDOR Mitigation: Explicitly reject requests where the payload user_id
+        // does not match the authenticated user to prevent unauthorized access.
+        if (payload.user_id && payload.user_id !== verifiedUserId) {
+            res.status(403).json({ error: 'Forbidden: user_id in payload does not match the authenticated user.' });
+            return;
+        }
+
+        // Always overwrite with the verified user ID (never trust the client-supplied value)
+        payload.user_id = verifiedUserId;
+
         const result = await saveWorkoutRecord(payload);
         res.json(result);
     } catch (error: any) {
@@ -86,14 +95,22 @@ app.patch('/log', handleWorkoutLog);
 
 app.delete('/log', async (req, res) => {
     try {
-        const verifiedUserId = (req as any).verifiedUserId;
+        const verifiedUserId: string = (req as any).verifiedUserId;
+
+        // IDOR Mitigation: Explicitly reject requests where the payload user_id
+        // does not match the authenticated user to prevent unauthorized deletion.
+        if (req.body.user_id && req.body.user_id !== verifiedUserId) {
+            res.status(403).json({ error: 'Forbidden: user_id in payload does not match the authenticated user.' });
+            return;
+        }
+
         const timestamp = req.body.timestamp || req.body.SK?.replace('WORKOUT#', '');
-        
+
         if (!timestamp) {
             res.status(400).json({ error: "Missing timestamp for deletion." });
             return;
         }
-        
+
         await deleteWorkoutRecord(verifiedUserId, timestamp);
         res.status(204).send();
     } catch (error: any) {
@@ -112,7 +129,8 @@ app.post('/ai/recommend', async (req, res) => {
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const history = await getWorkoutsSince(verifiedUserId, sevenDaysAgo);
         
-        console.log(`Found ${history.length} workout records for user ${verifiedUserId}`);
+        // Note: Do not log verifiedUserId here to avoid PII exposure in logs
+        console.log(`Found ${history.length} workout records for AI recommendation`);
         const recommendation = await getTrainingRecommendation(history);
 
         res.json(recommendation);
