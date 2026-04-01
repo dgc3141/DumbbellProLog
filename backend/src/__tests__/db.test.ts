@@ -62,6 +62,10 @@ describe('db.ts', () => {
 
             // 30 items / 25 limit = 2 batches
             expect(ddbMock.commandCalls(BatchWriteCommand)).toHaveLength(2);
+
+            // Verify TTL exists in the calls
+            const firstBatch = ddbMock.commandCalls(BatchWriteCommand)[0].args[0].input.RequestItems['DumbbellProLog'];
+            expect(firstBatch[0].PutRequest.Item.expires_at).toBeGreaterThan(Date.now() / 1000);
         });
 
         it('should do nothing if menus array is empty', async () => {

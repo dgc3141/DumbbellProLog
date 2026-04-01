@@ -7,6 +7,7 @@ export interface WorkoutSet {
     weight: number;
     reps: number;
     rpe: RpeLevel;
+    expires_at?: number; // DynamoDB TTL
 }
 
 export interface Exercise {
@@ -61,6 +62,7 @@ export interface EndlessMenu {
     bodyPart: string;          // "push" | "pull" | "legs"
     exercises: MenuExercise[];
     generatedAt: string;
+    expires_at?: number; // DynamoDB TTL
 }
 
 export interface AIInfoResponse {
