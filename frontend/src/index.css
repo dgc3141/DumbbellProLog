@@ -18,3 +18,23 @@ body {
     background: rgba(30, 41, 59, 0.7);
     backdrop-filter: blur(12px);
 }
+
+/* =====================================================
+   Gym Mode: High-contrast dark for dim gym environments
+   Slightly lighter dark bg + higher card opacity
+   ===================================================== */
+.gym-mode .glass-card {
+    background: rgba(20, 32, 54, 0.97);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* Stronger glow on progress bar for visibility mid-session */
+.gym-mode .progress-bar {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* Bottom nav higher contrast */
+.gym-mode nav.glass-card {
+    background: rgba(12, 22, 42, 0.99);
+}

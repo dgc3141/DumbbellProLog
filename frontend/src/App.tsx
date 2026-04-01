@@ -17,6 +17,7 @@ const Layout = ({
   children,
   hideNav = false,
   theme,
+  gymMode,
   toast,
   session,
   view,
@@ -28,6 +29,7 @@ const Layout = ({
   children: React.ReactNode,
   hideNav?: boolean,
   theme: 'light' | 'dark',
+  gymMode: boolean,
   toast: { message: string, type: 'success' | 'error' } | null,
   session: CognitoSession | null,
   view: string,
@@ -36,7 +38,7 @@ const Layout = ({
   logout?: () => void,
   showToast?: (m: string) => void
 }) => (
-  <div className={`min-h-screen flex flex-col items-center p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] select-none transition-colors duration-500 ${theme} ${theme === 'dark' ? 'bg-[#0f172a] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+  <div className={`min-h-screen flex flex-col items-center p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] select-none transition-colors duration-500 ${theme} ${theme === 'dark' ? (gymMode ? 'bg-[#152232] text-white' : 'bg-[#0f172a] text-slate-100') : 'bg-slate-50 text-slate-900'} ${gymMode && theme === 'dark' ? 'gym-mode' : ''}`}>
     {/* Toast Notification */}
     {toast && (
       <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full font-black text-sm shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300 ${toast.type === 'success' ? 'bg-blue-600 text-white' : 'bg-red-500 text-white'}`}>
@@ -101,6 +103,9 @@ export default function App() {
     const saved = localStorage.getItem('app_theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'dark';
   });
+  const [gymMode, setGymMode] = useState<boolean>(() => {
+    return localStorage.getItem('gym_mode') === 'true';
+  });
   const [view, setView] = useState<'time_select' | 'training' | 'stats' | 'settings'>('time_select');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -139,6 +144,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('app_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('gym_mode', String(gymMode));
+  }, [gymMode]);
+
+  const toggleGymMode = useCallback(() => setGymMode(m => !m), []);
 
   // トレーニング完了時にAI推奨を自動取得 & メニュー再生成トリガー & Confetti 🎉
   useEffect(() => {
@@ -185,7 +196,7 @@ export default function App() {
 
   if (!session) {
     return (
-      <Layout hideNav theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+      <Layout hideNav theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <LoginView theme={theme} onLoginSuccess={(s) => setSession(s)} />
       </Layout>
     );
@@ -193,7 +204,7 @@ export default function App() {
 
   if (view === 'time_select') {
     return (
-      <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+      <Layout theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <TimeSelectView
           session={session}
           apiBase={API_BASE}
@@ -205,7 +216,7 @@ export default function App() {
 
   if (view === 'stats') {
     return (
-      <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+      <Layout theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <header className="flex justify-between items-center mb-10 pt-4">
           <h1 className="text-3xl font-black italic text-blue-500">GROWTH</h1>
         </header>
@@ -223,9 +234,11 @@ export default function App() {
 
   if (view === 'settings') {
     return (
-      <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+      <Layout theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <SettingsView
           theme={theme}
+          gymMode={gymMode}
+          onToggleGymMode={toggleGymMode}
           session={session}
           apiBase={API_BASE}
           onBack={() => setView('time_select')}
@@ -238,7 +251,7 @@ export default function App() {
 
   if (!activeMenu) {
     return (
-      <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+      <Layout theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <div className="min-h-[80vh] flex flex-col items-center justify-center">
           <div className="glass-card p-8 rounded-[3rem] text-center w-full border border-slate-700/50">
             <h1 className="text-2xl font-black italic text-blue-500 mb-4">NO ACTIVE SESSION</h1>
@@ -257,7 +270,7 @@ export default function App() {
 
   if (isSessionComplete) {
     return (
-      <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+      <Layout theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
         <div className="min-h-[80vh] flex flex-col items-center justify-center">
           <div className="glass-card p-8 rounded-[3rem] text-center w-full border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.15)]">
             <h1 className="text-4xl font-black italic text-blue-500 mb-2">FINISHED!</h1>
@@ -274,7 +287,7 @@ export default function App() {
   }
 
   return (
-    <Layout theme={theme} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
+    <Layout theme={theme} gymMode={gymMode} toast={toast} session={session} view={view} setView={setView} setTheme={setTheme} logout={logout} showToast={showToast}>
       <header className="w-full flex flex-wrap justify-between items-end gap-y-4 mb-6 pt-12">
         <div>
           <h1 className="text-xl font-black italic text-blue-500 uppercase leading-none">
