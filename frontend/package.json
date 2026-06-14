@@ -17,7 +17,7 @@
     "@aws-sdk/client-cognito-identity-provider": "^3.1068.0",
     "@aws-sdk/credential-provider-node": "^3.972.14",
     "@types/canvas-confetti": "^1.9.0",
-    "amazon-cognito-identity-js": "^6.3.16",
+    "amazon-cognito-identity-js": "^6.3.17",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.18.0",
