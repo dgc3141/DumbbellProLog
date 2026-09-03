@@ -19,7 +19,7 @@
     "@aws-sdk/client-dynamodb": "^3.592.0",
     "@aws-sdk/lib-dynamodb": "^3.592.0",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "serverless-http": "^3.2.0",
     "zod": "^3.23.8"
   },
